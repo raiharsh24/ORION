@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Dict, List, Optional
 from loguru import logger
 from app.scheduler.jobs import ScheduledJob
@@ -24,7 +25,7 @@ class FridayScheduler:
     async def _tick_loop(self) -> None:
         try:
             while self._running:
-                now = asyncio.get_event_loop().time()
+                now = time.time()
                 for job in list(self.jobs.values()):
                     try:
                         if job.trigger.should_fire(now):

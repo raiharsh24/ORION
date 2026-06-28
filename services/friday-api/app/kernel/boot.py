@@ -120,7 +120,6 @@ class BootManager:
         # Step 7b: Initialize Desktop Automation Service
         logger.info("Boot Step 7b: Initialize Desktop Automation Service...")
         desktop_automation = DesktopAutomationService()
-        await desktop_automation.initialize()
         self._container.register_singleton("desktop_automation", desktop_automation)
         kernel.module_registry.register_module("desktop_automation", "1.0.0", [], desktop_automation)
         kernel.capability_registry.register_capability(
@@ -142,7 +141,10 @@ class BootManager:
         logger.info("Boot Step 8: Initialize Mission Engine...")
         telemetry = MissionTelemetry()
         self._container.register_singleton("telemetry", telemetry)
+        kernel.module_registry.register_module("telemetry", "1.0.0", [], telemetry)
         history = MissionHistory()
+        self._container.register_singleton("history", history)
+        kernel.module_registry.register_module("history", "1.0.0", [], history)
         mission_engine = MissionManager(
             event_bus=event_bus,
             telemetry=telemetry,
@@ -162,6 +164,7 @@ class BootManager:
         logger.info("Boot Step 9: Initialize Workflow Engine...")
         workflow_history = WorkflowHistory()
         self._container.register_singleton("workflow_history", workflow_history)
+        kernel.module_registry.register_module("workflow_history", "1.0.0", [], workflow_history)
         workflow_engine = WorkflowEngine(
             mission_engine=mission_engine,
             desktop_automation=desktop_automation,
@@ -221,12 +224,14 @@ class BootManager:
         try:
             agent_message_bus = AgentMessageBus(event_bus=event_bus)
             self._container.register_singleton("agent_message_bus", agent_message_bus)
+            kernel.module_registry.register_module("agent_message_bus", "1.0.0", ["event_bus"], agent_message_bus)
 
             agent_registry = AgentRegistry(
                 event_bus=event_bus,
                 message_bus=agent_message_bus
             )
             self._container.register_singleton("agent_registry", agent_registry)
+            kernel.module_registry.register_module("agent_registry", "1.0.0", ["event_bus", "agent_message_bus"], agent_registry)
 
             agent_scheduler = AgentScheduler(event_bus=event_bus)
             self._container.register_singleton("agent_scheduler", agent_scheduler)
@@ -234,9 +239,11 @@ class BootManager:
 
             agent_telemetry = AgentTelemetry(event_bus=event_bus)
             self._container.register_singleton("agent_telemetry", agent_telemetry)
+            kernel.module_registry.register_module("agent_telemetry", "1.0.0", ["event_bus"], agent_telemetry)
 
             shared_context = SharedContext(kernel=kernel, event_bus=event_bus)
             self._container.register_singleton("shared_context", shared_context)
+            kernel.module_registry.register_module("shared_context", "1.0.0", ["event_bus"], shared_context)
 
             agent_coordinator = AgentCoordinator(
                 registry=agent_registry,
@@ -276,9 +283,11 @@ class BootManager:
             persist_dir = getattr(config.paths, "persist_dir", getattr(config.paths, "workspace_root", "./data"))
             workflow_persistence = WorkflowPersistence(persist_dir=persist_dir)
             self._container.register_singleton("workflow_persistence", workflow_persistence)
+            kernel.module_registry.register_module("workflow_persistence", "1.0.0", [], workflow_persistence)
 
             checkpoint_manager = CheckpointManager(persist_dir=persist_dir)
             self._container.register_singleton("checkpoint_manager", checkpoint_manager)
+            kernel.module_registry.register_module("checkpoint_manager", "1.0.0", [], checkpoint_manager)
 
             workflow_worker = WorkflowWorkerAgent(
                 agent_id="workflow-worker",
@@ -288,6 +297,7 @@ class BootManager:
             await agent_registry.register(workflow_worker)
             workflow_worker.set_context(shared_context)
             self._container.register_singleton("workflow_worker_agent", workflow_worker)
+            kernel.module_registry.register_module("workflow_worker_agent", "1.0.0", ["shared_context"], workflow_worker)
 
             runtime_executor = WorkflowRuntimeExecutor(
                 agent_coordinator=agent_coordinator,
@@ -296,6 +306,7 @@ class BootManager:
                 event_bus=event_bus,
             )
             self._container.register_singleton("workflow_runtime_executor", runtime_executor)
+            kernel.module_registry.register_module("workflow_runtime_executor", "1.0.0", ["agent_coordinator", "shared_context", "checkpoint_manager"], runtime_executor)
 
             runtime_manager = WorkflowRuntimeManager(
                 persistence=workflow_persistence,
@@ -309,6 +320,7 @@ class BootManager:
                 agent_scheduler=agent_scheduler,
             )
             self._container.register_singleton("runtime_scheduler_bridge", scheduler_bridge)
+            kernel.module_registry.register_module("runtime_scheduler_bridge", "1.0.0", ["workflow_runtime", "agent_scheduler"], scheduler_bridge)
 
             kernel.module_registry.register_module(
                 "workflow_runtime", "1.0.0",
@@ -323,6 +335,32 @@ class BootManager:
             logger.info("Workflow Runtime registered in FridayServiceContainer.")
         except Exception as e:
             logger.error(f"Failed to initialize Workflow Runtime: {str(e)}")
+            raise e
+
+        # Step 13: Initialize Voice Subsystem
+        logger.info("Boot Step 13: Initialize Voice Subsystem...")
+        try:
+            from app.voice.manager import VoiceSessionManager
+            from app.voice.stt import GeminiSpeechProvider
+            from app.api.routes import get_orchestrator
+            
+            # Resolve Gemini Adapter from llm_router for STT provider
+            llm_router = self._container.get("llm_router")
+            gemini_adapter = llm_router.get_provider("gemini") if llm_router else None
+            
+            speech_provider = GeminiSpeechProvider(gemini_adapter) if gemini_adapter else None
+            
+            voice_manager = VoiceSessionManager(
+                event_bus=event_bus,
+                orchestrator_factory=get_orchestrator,
+                speech_provider=speech_provider
+            )
+            self._container.register_singleton("voice_manager", voice_manager)
+            kernel.module_registry.register_module("voice_manager", "1.0.0", ["event_bus", "llm_router"], voice_manager)
+            
+            logger.info("Voice Subsystem registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Voice Subsystem: {str(e)}")
             raise e
 
         # Construct Context

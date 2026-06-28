@@ -7,6 +7,7 @@ from app.api.kernel import router as kernel_router
 from app.api.missions import router as missions_router
 from app.api.stream import router as stream_router
 from app.api.workflows import router as workflows_router
+from app.api.voice import router as voice_router
 
 api_router = APIRouter()
 
@@ -19,3 +20,4 @@ api_router.include_router(kernel_router)
 api_router.include_router(missions_router)
 api_router.include_router(stream_router)
 api_router.include_router(workflows_router)
+api_router.include_router(voice_router)

@@ -41,6 +41,9 @@ class DesktopAutomationService(BaseCapability):
 
     async def initialize(self) -> None:
         """Starts the background execution queue worker loop."""
+        if self._loop_task and not self._loop_task.done():
+            logger.info("DesktopAutomationService is already initialized.")
+            return
         self._loop_task = asyncio.create_task(self._queue_worker())
 
     async def validate(self, **kwargs) -> bool:

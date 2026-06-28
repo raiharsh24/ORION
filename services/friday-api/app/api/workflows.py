@@ -330,6 +330,27 @@ async def cancel_workflow(workflow_id: str) -> WorkflowActionResponse:
     )
 
 
+@router.post("/workflows/runtime/{workflow_id}/cancel", response_model=WorkflowActionResponse)
+async def cancel_runtime_workflow(workflow_id: str) -> WorkflowActionResponse:
+    """Cancel an active runtime workflow execution."""
+    kernel = FridayKernel.get_instance()
+    bridge = kernel.get_service("runtime_scheduler_bridge")
+    if not bridge:
+        manager = kernel.get_service("workflow_runtime_manager")
+        if not manager:
+            raise HTTPException(status_code=500, detail="Workflow Runtime not registered in Kernel.")
+        ok = await manager.cancel(workflow_id)
+    else:
+        ok = await bridge.cancel(workflow_id)
+        
+    return WorkflowActionResponse(
+        success=ok,
+        workflow_id=workflow_id,
+        message="Workflow cancelled successfully (Runtime)." if ok else "No active runtime workflow to cancel.",
+    )
+
+
+
 @router.post("/workflows/{workflow_id}/restart", response_model=WorkflowActionResponse)
 async def restart_workflow(workflow_id: str) -> WorkflowActionResponse:
     """Cancel the current run and start a fresh one."""

@@ -5,61 +5,61 @@
       {
         "role": "user",
         "content": "Compatible query",
-        "timestamp": 1782650855.1446443
+        "timestamp": 1782655205.060224
       },
       {
         "role": "assistant",
         "content": "Compatible response",
-        "timestamp": 1782650855.145268
+        "timestamp": 1782655205.0606425
       }
     ],
     "summary": "custom summary",
-    "created_at": 1782650855.1435518,
-    "updated_at": 1782650855.146817,
+    "created_at": 1782655205.0574887,
+    "updated_at": 1782655205.0616262,
     "context": "active-flow",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
   },
-  "session:a7639170-9ac8-437b-9ee6-087da8d322ac": {
-    "session_id": "a7639170-9ac8-437b-9ee6-087da8d322ac",
+  "session:1cd5ad28-5b0c-4813-98ad-4f380d74700e": {
+    "session_id": "1cd5ad28-5b0c-4813-98ad-4f380d74700e",
     "messages": [
       {
         "role": "user",
         "content": "Hello FRIDAY",
-        "timestamp": 1782650855.626186
+        "timestamp": 1782655205.5497541
       },
       {
         "role": "assistant",
         "content": "Mocked Gemini Response text.",
-        "timestamp": 1782650855.6269975
+        "timestamp": 1782655205.5508053
       }
     ],
     "summary": "Summary: Completed conversation with 2 turns.",
-    "created_at": 1782650855.6243336,
-    "updated_at": 1782650855.6326966,
+    "created_at": 1782655205.5480266,
+    "updated_at": 1782655205.5576794,
     "context": "Intent: CHAT",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
   },
-  "session:c21c2f42-8162-4483-8206-8a5c61bdfbbb": {
-    "session_id": "c21c2f42-8162-4483-8206-8a5c61bdfbbb",
+  "session:de1b1da9-b75d-460f-b66d-d816c8b72ffc": {
+    "session_id": "de1b1da9-b75d-460f-b66d-d816c8b72ffc",
     "messages": [
       {
         "role": "user",
         "content": "stream test",
-        "timestamp": 1782650856.8588731
+        "timestamp": 1782655206.5778685
       },
       {
         "role": "assistant",
         "content": "Hello world",
-        "timestamp": 1782650856.8639052
+        "timestamp": 1782655206.5820715
       }
     ],
     "summary": "Summary: Completed conversation with 2 turns.",
-    "created_at": 1782650856.8575473,
-    "updated_at": 1782650856.8686137,
+    "created_at": 1782655206.5766027,
+    "updated_at": 1782655206.5855982,
     "context": "Intent: CHAT (streamed)",
     "tool_used": null,
     "tool_output": null,

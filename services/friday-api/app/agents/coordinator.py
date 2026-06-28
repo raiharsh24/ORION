@@ -226,6 +226,13 @@ class AgentCoordinator:
         # Drain dead letter queue
         self._dead_letter_queue.clear()
 
+        # Shutdown all registered agents in registry
+        for agent_id in list(self._registry._agents.keys()):
+            try:
+                await self._registry.unregister(agent_id)
+            except Exception as e:
+                logger.error(f"AgentCoordinator: error unregistering agent '{agent_id}': {e}")
+
         # Shutdown the agent scheduler
         await self._scheduler.shutdown()
 
