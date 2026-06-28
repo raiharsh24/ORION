@@ -14,9 +14,9 @@ from app.kernel.context import (
     UserContext, MissionContext, WorkspaceContext, SystemMetadata,
     OrionKernelContext
 )
-from app.kernel.registry import OrionServiceRegistry
 from app.kernel.boot import BootManager
 from app.kernel.kernel import OrionKernel
+from app.kernel.container import OrionServiceContainer
 
 __all__ = [
     "KernelState",
@@ -50,7 +50,7 @@ __all__ = [
     "WorkspaceContext",
     "SystemMetadata",
     "OrionKernelContext",
-    "OrionServiceRegistry",
     "BootManager",
-    "OrionKernel"
+    "OrionKernel",
+    "OrionServiceContainer"
 ]

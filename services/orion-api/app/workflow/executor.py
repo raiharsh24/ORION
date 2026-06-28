@@ -209,7 +209,7 @@ class WorkflowNodeExecutor:
         inputs: Dict[str, Any],
         workflow: Workflow
     ) -> Dict[str, Any]:
-        """Queries the RetrievalEngine knowledge base."""
+        """Queries the KnowledgeEngine knowledge base."""
         if not self._knowledge_engine:
             raise RuntimeError("KnowledgeEngine not available for KNOWLEDGE_QUERY node")
 
@@ -217,10 +217,7 @@ class WorkflowNodeExecutor:
         top_k  = inputs.get("top_k", 5)
         logger.info(f"[Executor] Knowledge query for node '{node.id}': '{query}'")
 
-        results = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._knowledge_engine.retrieve(query, top_k=top_k)
-        )
+        results = await self._knowledge_engine.retrieve(query, top_k=top_k)
         return {"results": results, "query": query, "count": len(results) if results else 0}
 
     async def _run_planner_step(

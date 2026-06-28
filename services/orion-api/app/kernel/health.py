@@ -33,6 +33,9 @@ class KernelHealth(BaseModel):
     workflow: SubsystemHealth
     scheduler: SubsystemHealth
     llm: SubsystemHealth
+    agents: SubsystemHealth = Field(default_factory=lambda: SubsystemHealth(
+        name="agents", status=HealthStatus.UNKNOWN, message="Subsystem not registered"
+    ))
 
 def check_service_health(name: str, service: Any) -> SubsystemHealth:
     """

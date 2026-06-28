@@ -66,8 +66,14 @@ export class OrionEngine {
       // 3. Load total history for context analysis
       const history = await this.conversationManager.getHistory(sessionId);
 
+      // 5. Instantiate target provider
+      const providerConfig = (this.config.providers && this.config.providers[providerName]) || {};
+      const provider = this.providerFactory.createProvider(providerName, providerConfig);
+      
+      modelName = (await provider.getModelInfo()).name;
+
       // 4. Trim the history to ensure compatibility with context limitations
-      const trimmedHistory = await this.contextManager.trimHistory(history, {
+      const trimmedHistory = await this.contextManager.trimHistory(history, provider, {
         maxMessageCount: options.maxMessageCount,
         maxTokenLimit: options.maxTokenLimit
       });
@@ -78,12 +84,6 @@ export class OrionEngine {
         userMessage,
         relevantContext
       });
-
-      // 6. Instantiate target provider
-      const providerConfig = (this.config.providers && this.config.providers[providerName]) || {};
-      const provider = this.providerFactory.createProvider(providerName, providerConfig);
-      
-      modelName = (await provider.getModelInfo()).name;
 
       // 7. Invoke prompt completion
       const rawResult = await provider.chat(messages, options);
@@ -136,9 +136,12 @@ export class OrionEngine {
     // Add user query to history
     await this.conversationManager.addMessage(sessionId, 'user', userMessage);
 
+    const providerConfig = (this.config.providers && this.config.providers[providerName]) || {};
+    const provider = this.providerFactory.createProvider(providerName, providerConfig);
+
     // Get current history and trim
     const history = await this.conversationManager.getHistory(sessionId);
-    const trimmedHistory = await this.contextManager.trimHistory(history, {
+    const trimmedHistory = await this.contextManager.trimHistory(history, provider, {
       maxMessageCount: options.maxMessageCount,
       maxTokenLimit: options.maxTokenLimit
     });
@@ -149,9 +152,6 @@ export class OrionEngine {
       userMessage,
       relevantContext
     });
-
-    const providerConfig = (this.config.providers && this.config.providers[providerName]) || {};
-    const provider = this.providerFactory.createProvider(providerName, providerConfig);
 
     // Return the stream source generator
     return provider.stream(messages, options);

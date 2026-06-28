@@ -31,60 +31,54 @@ export class ContextManager {
    * Trims message history to fit within defined message counts and token limits.
    * Always attempts to keep the system prompt intact if it is present.
    * @param {Array<object>} messages - The input message array.
+   * @param {object} provider - LLM Provider adapter instance.
    * @param {object} [options] - Overrides for trimming rules.
    * @param {number} [options.maxMessageCount] - Max messages to retain.
    * @param {number} [options.maxTokenLimit] - Max tokens to allow.
    * @returns {Promise<Array<object>>} Trimmed message array.
    */
-  async trimHistory(messages, options = {}) {
-    const maxMessageCount = options.maxMessageCount || this.defaultMaxMessageCount;
-    const maxTokenLimit = options.maxTokenLimit || this.defaultMaxTokenLimit;
-
+  async trimHistory(messages, provider, options = {}) {
     if (!messages || messages.length === 0) {
       return [];
     }
 
+    this.provider = provider;
+    const modelInfo = await this.provider.getModelInfo();
+    const contextLimit = modelInfo.contextLimit || 1048576;
+    const tokenBudget = Math.floor(contextLimit * 0.8);
+
     let trimmed = [...messages];
-
-    // 1. Trim by message count first (keep recent)
-    if (trimmed.length > maxMessageCount) {
-      const systemPrompt = trimmed[0].role === 'system' ? trimmed[0] : null;
-      const startIndex = systemPrompt ? trimmed.length - maxMessageCount + 1 : trimmed.length - maxMessageCount;
-      trimmed = trimmed.slice(startIndex);
-      
-      if (systemPrompt) {
-        trimmed.unshift(systemPrompt);
-      }
-    }
-
-    // 2. Trim by token limit (working from newest to oldest)
-    let totalTokens = 0;
-    const systemPrompt = trimmed.length > 0 && trimmed[0].role === 'system' ? trimmed[0] : null;
-    const systemTokens = systemPrompt ? this.estimateTokens(systemPrompt) : 0;
     
-    totalTokens += systemTokens;
+    // Always preserve system message at index 0 if it is present
+    const hasSystem = trimmed[0] && trimmed[0].role === 'system';
+    const systemPrompt = hasSystem ? trimmed[0] : null;
 
-    const keptMessages = [];
-    const loopStartIndex = systemPrompt ? 1 : 0;
-    
-    // Process messages starting from the most recent (end of array)
-    for (let i = trimmed.length - 1; i >= loopStartIndex; i--) {
-      const msg = trimmed[i];
-      const tokens = this.estimateTokens(msg);
-      
-      if (totalTokens + tokens <= maxTokenLimit) {
-        keptMessages.unshift(msg);
-        totalTokens += tokens;
-      } else {
-        // Stop adding older messages once the limit is breached
+    // Helper to evaluate current token usage
+    const getBudgetTokens = async (msgs) => {
+      return await this.provider.estimateTokens(msgs);
+    };
+
+    // Trim oldest messages in pairs (user + assistant) until within budget
+    while (trimmed.length > (hasSystem ? 2 : 1)) {
+      const currentTokens = await getBudgetTokens(trimmed);
+      if (currentTokens <= tokenBudget) {
         break;
       }
+      
+      // Remove pair from the beginning (index 1 & 2 if system exists, otherwise index 0 & 1)
+      if (hasSystem) {
+        trimmed.splice(1, 2);
+      } else {
+        trimmed.splice(0, 2);
+      }
     }
 
-    if (systemPrompt) {
-      keptMessages.unshift(systemPrompt);
+    // Ensure system prompt is preserved at index 0
+    if (systemPrompt && (trimmed.length === 0 || trimmed[0] !== systemPrompt)) {
+      trimmed = trimmed.filter(m => m !== systemPrompt);
+      trimmed.unshift(systemPrompt);
     }
 
-    return keptMessages;
+    return trimmed;
   }
 }

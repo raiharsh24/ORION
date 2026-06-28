@@ -2,7 +2,7 @@ import pytest
 import anyio
 from typing import Dict, Any
 from app.kernel import (
-    OrionKernel, OrionServiceRegistry, OrionKernelConfig, KernelState,
+    OrionKernel, OrionServiceContainer, OrionKernelConfig, KernelState,
     HealthStatus, SubsystemHealth, check_service_health,
     KernelBooting, KernelReady, KernelShutdown, KernelRestart, KernelError
 )
@@ -41,53 +41,62 @@ async def test_kernel_singleton():
     assert k3 is not k1
 
 @pytest.mark.anyio
-async def test_service_registry():
-    registry = OrionServiceRegistry()
-    assert not registry.exists("dummy")
-    assert registry.get("dummy") is None
+async def test_service_container():
+    container = OrionServiceContainer()
+    assert not container.has("dummy")
     
-    # Simple registration
+    # 1. Singleton Scope
     service = object()
-    registry.register("dummy", service)
-    assert registry.exists("dummy")
-    assert registry.get("dummy") is service
-    assert "dummy" in registry.list_services()
-    assert "dummy" in registry.list()
+    container.register_singleton("dummy", service)
+    assert container.has("dummy")
+    assert container.get("dummy") is service
+    assert "dummy" in container.list_services()
     
     # Unregister
-    registry.unregister("dummy")
-    assert not registry.exists("dummy")
-    assert registry.get("dummy") is None
+    container.unregister("dummy")
+    assert not container.has("dummy")
     
-    # Lazy registration
+    # 2. Lazy Singleton
     eval_count = 0
     def factory():
         nonlocal eval_count
         eval_count += 1
         return "lazy-resolved-service"
         
-    registry.register("lazy_svc", factory, lazy=True)
-    assert registry.exists("lazy_svc")
-    assert eval_count == 0  # not evaluated yet
+    container.register_singleton("lazy_svc", factory)
+    assert container.has("lazy_svc")
+    assert eval_count == 0
     
-    res1 = registry.get("lazy_svc")
+    res1 = container.get("lazy_svc")
     assert res1 == "lazy-resolved-service"
     assert eval_count == 1
     
-    res2 = registry.get("lazy_svc")
+    res2 = container.get("lazy_svc")
     assert res2 == "lazy-resolved-service"
     assert eval_count == 1  # cached
     
-    # Override lazy with concrete
-    registry.register("lazy_svc", "concrete-now")
-    assert registry.get("lazy_svc") == "concrete-now"
+    # 3. Transient Scope
+    transient_count = 0
+    def transient_factory():
+        nonlocal transient_count
+        transient_count += 1
+        class Transient:
+            pass
+        return Transient()
+        
+    container.register_transient("transient_svc", transient_factory)
+    t1 = container.get("transient_svc")
+    t2 = container.get("transient_svc")
+    assert t1 is not t2
+    assert transient_count == 2
     
-    # Lazy error handling
-    def bad_factory():
-        raise ValueError("factory error")
-    registry.register("bad_lazy", bad_factory, lazy=True)
-    with pytest.raises(ValueError):
-        registry.get("bad_lazy")
+    # 4. Parameterized Factory Scope
+    def param_factory(x: int, y: int):
+        return x + y
+        
+    container.register_factory("add_svc", param_factory)
+    res_val = container.get("add_svc", 3, y=7)
+    assert res_val == 10
 
 @pytest.mark.anyio
 async def test_check_service_health():
@@ -238,3 +247,4 @@ async def test_kernel_boot_failure():
     assert len(errors) == 1
     assert isinstance(errors[0], KernelError)
     assert errors[0].data["error"] == "simulated startup crash"
+    OrionKernel.reset_instance()
