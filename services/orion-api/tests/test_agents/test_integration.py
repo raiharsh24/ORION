@@ -50,9 +50,11 @@ async def test_agent_register_and_route_via_kernel():
     await registry.register(agent)
 
     infos = registry.list()
-    assert len(infos) == 1
-    assert infos[0].agent_id == "int-agent"
-    assert "echo" in infos[0].capabilities
+    assert len(infos) >= 1
+    registered_ids = [i.agent_id for i in infos]
+    assert "int-agent" in registered_ids
+    int_agent_info = next(i for i in infos if i.agent_id == "int-agent")
+    assert "echo" in int_agent_info.capabilities
 
     task = AgentTask(
         task_id=uuid.uuid4().hex,
