@@ -3,7 +3,7 @@ from typing import Dict, Any, List, Optional
 from loguru import logger
 
 from app.memory.schema import SessionMemory, ChatMessage
-from app.memory.store import JSONStore, InMemoryStore
+from app.memory.store import JSONStore, InMemoryStore, SQLiteStore
 from app.memory.manager import MemoryManager
 from app.memory.serializer import MemorySerializer
 
@@ -28,10 +28,36 @@ class MemoryEngine:
         kernel = FridayKernel.get_instance()
         config = getattr(kernel, "_config", None)
         
-        # Configure file persistence if dir is set
+        # Configure file/DB persistence if dir is set
         if config and config.paths and config.paths.persist_dir:
-            file_path = os.path.join(config.paths.persist_dir, "friday_memory.json")
-            store = JSONStore(file_path)
+            json_path = os.path.join(config.paths.persist_dir, "friday_memory.json")
+            db_path = os.path.join(config.paths.persist_dir, "friday_memory.db")
+            
+            use_sqlite = os.getenv("FRIDAY_USE_SQLITE", "true").lower() == "true"
+            
+            if use_sqlite:
+                try:
+                    logger.info("Initializing SQLiteStore persistence backend...")
+                    store = SQLiteStore(db_path)
+                    
+                    # Idempotent migration check: if JSON exists and SQLite is empty, migrate
+                    if os.path.exists(json_path) and not store.keys():
+                        logger.info("SQLiteStore is empty; starting migration from existing JSON memory file...")
+                        try:
+                            json_store = JSONStore(json_path)
+                            for k in json_store.keys():
+                                val = json_store.get(k)
+                                if val is not None:
+                                    store.put(k, val)
+                            logger.info(f"Migration successful: copied {len(json_store.keys())} keys to SQLiteStore.")
+                        except Exception as migration_err:
+                            logger.error(f"Migration from JSON to SQLite failed: {migration_err}. Proceeding with SQLiteStore.")
+                except Exception as db_err:
+                    logger.error(f"SQLiteStore initialization failed: {db_err}. Falling back to JSONStore.")
+                    store = JSONStore(json_path)
+            else:
+                logger.info("SQLiteStore disabled via environment flag. Initializing JSONStore backend.")
+                store = JSONStore(json_path)
         else:
             store = InMemoryStore()
             
