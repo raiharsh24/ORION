@@ -1,174 +1,199 @@
 import pytest
+import anyio
 import os
 import tempfile
-from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+from typing import Dict, Any
 
-from app.main import app
-from app.orion.workspace import WorkspaceManager
-from app.memory.embeddings import EmbeddingsManager
-from app.orion.vectordb import VectorDB, SimpleVectorDB
-from app.orion.indexer import DocumentIndexer
-from app.orion.retrieval import RetrievalEngine
-from app.tools.knowledge_search import KnowledgeSearchTool
+from app.orion.vectordb import InMemoryVectorStore, JSONVectorStore, VectorDB
+from app.orion.knowledge_embeddings import GeminiEmbeddingProvider, LocalEmbeddingProvider
+from app.orion.knowledge_document import Document, DocumentParser, ChunkManager
+from app.orion.knowledge_retriever import SemanticRetriever, HybridRetriever, KnowledgeRanker
+from app.orion.knowledge_context import CitationManager, ContextAssembler
+from app.orion.knowledge_engine import KnowledgeEngine, KnowledgeManager
+from app.events.bus import EventBus
+from app.kernel import OrionKernel, OrionKernelConfig
 
-client = TestClient(app)
-
-# ----------------- 1. Workspace Manager Tests -----------------
-
-def test_workspace_manager_git_discovery():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Pre-create standard mock hierarchy
-        proj_dir = os.path.join(tmpdir, "my-project")
-        git_dir = os.path.join(proj_dir, ".git")
-        os.makedirs(git_dir)
-
-        # Mock HEAD file
-        with open(os.path.join(git_dir, "HEAD"), "w") as f:
-            f.write("ref: refs/heads/feature/knowledge")
-
-        manager = WorkspaceManager(tmpdir)
-        projects = manager.discover_projects()
-
-        assert len(projects) == 1
-        assert projects[0]["name"] == "my-project"
-        assert projects[0]["is_git"] is True
-        assert projects[0]["branch"] == "knowledge"
-
-
-# ----------------- 2. Embeddings Manager Tests -----------------
-
-@pytest.mark.anyio
-async def test_embeddings_manager_fallback():
-    manager = EmbeddingsManager()
+# ----------------------------------------------------
+# 1. Pipeline Components Unit Tests
+# ----------------------------------------------------
+def test_document_parser_and_chunker():
+    parser = DocumentParser()
+    chunker = ChunkManager()
     
-    # Offline fallback should generate deterministic 768-dim vectors
-    v1 = await manager.embed_text("Orion Brain Engine")
-    v2 = await manager.embed_text("Orion Brain Engine")
-    v3 = await manager.embed_text("Different query term")
-
-    assert len(v1) == 768
-    assert v1 == v2  # Determinism
-    assert v1 != v3  # Variance
-
-    # Norm should be 1.0 (normalized)
-    norm = sum(x*x for x in v1) ** 0.5
-    assert pytest.approx(norm) == 1.0
-
-
-# ----------------- 3. Local Vector DB Tests -----------------
-
-def test_simple_vector_db():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db = SimpleVectorDB(tmpdir)
+    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmpf:
+        tmpf.write(b"Line one of test text.\n\nLine two of test text.")
+        tmp_name = tmpf.name
         
-        # Test addition
-        db.add(
-            ids=["doc1", "doc2"],
-            embeddings=[[0.1] * 768, [0.9] * 768],
-            metadatas=[{"name": "doc1_meta"}, {"name": "doc2_meta"}],
-            documents=["content one", "content two"]
-        )
+    try:
+        doc = parser.parse_file(tmp_name)
+        assert doc.id == tmp_name
+        assert "Line one" in doc.content
+        
+        # Test Fixed Chunk Strategy
+        chunks_fixed = chunker.chunk_document(doc, strategy="Fixed", chunk_size=20)
+        assert len(chunks_fixed) > 1
+        assert chunks_fixed[0].metadata.document_id == tmp_name
+        
+        # Test Sliding Window Strategy
+        chunks_slide = chunker.chunk_document(doc, strategy="Sliding Window", chunk_size=30, overlap=10)
+        assert len(chunks_slide) > 0
+    finally:
+        os.remove(tmp_name)
 
-        assert len(db.ids) == 2
-
-        # Test querying
-        query_res = db.query(query_embeddings=[[0.85] * 768], n_results=1)
-        assert query_res["ids"][0] == ["doc2"]
-        assert query_res["documents"][0] == ["content two"]
-        assert query_res["metadatas"][0] == [{"name": "doc2_meta"}]
-
-        # Test persistence reload
-        db_reload = SimpleVectorDB(tmpdir)
-        assert len(db_reload.ids) == 2
-        assert "doc1" in db_reload.ids
-
-
-# ----------------- 4. Document Indexer & Chunker Tests -----------------
+def test_vector_store_operations():
+    store = InMemoryVectorStore()
+    
+    ids = ["doc1", "doc2"]
+    embeddings = [[0.1, 0.2], [0.3, 0.4]]
+    metadatas = [{"title": "t1"}, {"title": "t2"}]
+    documents = ["hello alpha", "hello beta"]
+    
+    store.add(ids, embeddings, metadatas, documents)
+    assert len(store.get()["ids"]) == 2
+    
+    # Query check
+    res = store.query([[0.1, 0.2]], n_results=1)
+    assert res["ids"][0][0] == "doc1"
+    assert res["distances"][0][0] == pytest.approx(0.0, abs=1e-5) # distance = 1 - sim = 0
 
 @pytest.mark.anyio
-async def test_document_indexer_chunking():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db = VectorDB(tmpdir)
-        emb = EmbeddingsManager()
-        indexer = DocumentIndexer(db, emb)
-
-        # Check overlapping chunk boundaries
-        text = "word " * 300  # 1500 chars
-        chunks = indexer.chunk_text(text, chunk_size=500, overlap=100)
-        assert len(chunks) > 1
-
-        # Test file indexing
-        test_file = os.path.join(tmpdir, "doc.txt")
-        with open(test_file, "w", encoding="utf-8") as f:
-            f.write("Welcome to the ORION Action and Knowledge OS base.")
-
-        chunks_added = await indexer.index_file(test_file, "orion-test")
-        assert chunks_added == 1
-
-        stored = db.get()
-        assert len(stored["ids"]) == 1
-        assert "orion-test" in stored["metadatas"][0]["project_name"]
-
-
-# ----------------- 5. Retrieval Engine & Search Tool Tests -----------------
+async def test_retrieval_ranking_context():
+    store = InMemoryVectorStore()
+    provider = LocalEmbeddingProvider()
+    
+    ids = ["doc1", "doc2"]
+    # Generate vectors matching local embedding hash dimension (768)
+    v1 = await provider.embed_text("python language tutorial")
+    v2 = await provider.embed_text("recipe for chocolate cake")
+    
+    store.add(ids, [v1, v2], [{"title": "python"}, {"title": "cake"}], ["python language tutorial", "recipe for chocolate cake"])
+    
+    sem = SemanticRetriever(store, provider)
+    hybrid = HybridRetriever(sem)
+    ranker = KnowledgeRanker()
+    context = ContextAssembler(CitationManager())
+    
+    # 1. Test Semantic Search
+    res_sem = await sem.retrieve_semantic("python programming", n_results=1)
+    assert len(res_sem) == 1
+    assert res_sem[0]["id"] == "doc1"
+    
+    # 2. Test Hybrid Retrieval
+    res_hyb = await hybrid.retrieve("python tutorial", n_results=2)
+    assert len(res_hyb) == 2
+    
+    # 3. Test Ranker Filter
+    res_ranked = ranker.rank_and_filter(res_hyb, threshold=0.1, top_k=1)
+    assert len(res_ranked) == 1
+    assert res_ranked[0]["id"] == "doc1"
+    
+    # 4. Test Context Assembler
+    res_context = context.assemble_context(res_ranked)
+    assert "context_text" in res_context
+    assert "<KnowledgeSource" in res_context["context_text"]
+    assert len(res_context["citations"]) == 1
 
 @pytest.mark.anyio
-async def test_retrieval_and_search_tool():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db = VectorDB(tmpdir)
-        emb = EmbeddingsManager()
+async def test_vector_store_delete():
+    store = InMemoryVectorStore()
+
+    ids = ["doc1", "doc2", "doc3"]
+    embeddings = [[0.1, 0.2], [0.3, 0.4], [0.5, 0.6]]
+    metadatas = [{"title": "t1"}, {"title": "t2"}, {"title": "t3"}]
+    documents = ["alpha", "beta", "gamma"]
+
+    store.add(ids, embeddings, metadatas, documents)
+    assert len(store.get()["ids"]) == 3
+
+    # Delete single document
+    store.delete(["doc1"])
+    remaining = store.get()
+    assert len(remaining["ids"]) == 2
+    assert "doc1" not in remaining["ids"]
+
+    # Delete multiple documents
+    store.delete(["doc2", "doc3"])
+    assert len(store.get()["ids"]) == 0
+
+
+@ pytest.mark.anyio
+async def test_knowledge_engine_retrieve():
+    OrionKernel.reset_instance()
+    kernel = OrionKernel.get_instance(OrionKernelConfig())
+    await kernel.boot()
+
+    engine = kernel.get_service("knowledge_engine")
+
+    # Index a document first
+    persist_dir = kernel._config.paths.persist_dir
+    test_file = os.path.join(persist_dir, "retrieve_test.txt")
+    with open(test_file, "w") as f:
+        f.write("Asynchronous programming in Python uses async and await keywords.")
+
+    try:
+        await engine._manager.index_file(test_file, chunk_size=100)
+
+        # Test retrieve() method (workflow-compatible interface)
+        results = await engine.retrieve("python async", top_k=1)
+        assert len(results) == 1
+        assert results[0]["score"] > 0.0
+        assert "async" in results[0]["document"].lower()
+    finally:
+        await engine._manager.delete_document(test_file)
+        if os.path.exists(test_file):
+            os.remove(test_file)
+
+    await kernel.shutdown()
+
+
+# ----------------------------------------------------
+# 2. Boot Sequence Subsystem Integration Tests
+# ----------------------------------------------------
+@pytest.mark.anyio
+async def test_knowledge_engine_integration_events():
+    OrionKernel.reset_instance()
+    kernel = OrionKernel.get_instance(OrionKernelConfig())
+    await kernel.boot()
+    
+    engine = kernel.get_service("knowledge_engine")
+    assert engine is not None
+    assert isinstance(engine, KnowledgeEngine)
+    
+    # Subscribed event logs verification
+    event_bus = kernel.get_service("event_bus")
+    events = []
+    event_bus.subscribe("DocumentIndexed", lambda e: events.append(e))
+    event_bus.subscribe("EmbeddingGenerated", lambda e: events.append(e))
+    event_bus.subscribe("KnowledgeRetrieved", lambda e: events.append(e))
+    
+    # Write temp file in workspace to index
+    persist_dir = kernel._config.paths.persist_dir
+    test_file = os.path.join(persist_dir, "rag_source.txt")
+    with open(test_file, "w") as f:
+        f.write("FastAPI is an async python web framework.")
         
-        # Add sample data
-        db.add(
-            ids=["c1", "c2"],
-            embeddings=[emb._get_mock_embedding("python script"), emb._get_mock_embedding("typescript react")],
-            metadatas=[{"file_path": "a.py", "project_name": "p1"}, {"file_path": "b.ts", "project_name": "p2"}],
-            documents=["import os", "import React from 'react'"]
-        )
-
-        retrieval = RetrievalEngine(db, emb)
-        tool = KnowledgeSearchTool(retrieval)
-
-        # Test semantic search execution
-        tool_res = await tool.execute(query="where do we import React?")
-        assert "React" in tool_res
-        assert "b.ts" in tool_res
-
-
-# ----------------- 6. API Route Integration Tests -----------------
-
-@patch("app.orion.indexer.DocumentIndexer.index_directory")
-def test_knowledge_index_route(mock_index_dir):
-    mock_index_dir.return_value = 15
-
-    response = client.post(
-        "/knowledge/index",
-        json={"project_name": "test-suite"}
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    assert data["indexed_chunks"] == 15
-    assert "test-suite" in data["message"]
-
-
-def test_workspace_projects_route():
-    # Mock discover_projects
-    with patch("app.orion.workspace.WorkspaceManager.discover_projects") as mock_discover:
-        mock_discover.return_value = [{
-            "name": "core-api",
-            "path": "/home/warlock/ORION/services/orion-api",
-            "is_git": True,
-            "branch": "main",
-            "files_count": 42,
-            "languages": ["Python"]
-        }]
-
-        response = client.get("/workspace/projects")
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-        assert data[0]["name"] == "core-api"
-        assert data[0]["branch"] == "main"
-        assert data[0]["languages"] == ["Python"]
+    try:
+        # Index document
+        await engine._manager.index_file(test_file, chunk_size=100)
+        assert engine._manager.documents_indexed == 1
+        assert engine._manager.chunks_count == 1
+        
+        # Search it (using legacy compatible adapter)
+        res = await engine.search("FastAPI python framework", n_results=1)
+        assert len(res) == 1
+        assert "FastAPI" in res[0]["document"]
+        assert res[0]["score"] > 0.0
+        
+        # Verify event bus triggers
+        await anyio.sleep(0.1)
+        topics = [e.topic for e in events]
+        assert "DocumentIndexed" in topics
+        assert "EmbeddingGenerated" in topics
+        
+    finally:
+        # Clean up
+        await engine._manager.delete_document(test_file)
+        if os.path.exists(test_file):
+            os.remove(test_file)
+            
+    await kernel.shutdown()

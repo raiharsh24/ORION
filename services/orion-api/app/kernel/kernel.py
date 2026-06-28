@@ -6,7 +6,6 @@ from app.kernel.state import KernelState
 from app.kernel.config import OrionKernelConfig
 from app.kernel.context import OrionKernelContext, UserContext, MissionContext, WorkspaceContext, SystemMetadata
 from app.kernel.health import KernelHealth, check_service_health, HealthStatus, SubsystemHealth
-from app.kernel.registry import OrionServiceRegistry
 from app.kernel.boot import BootManager
 from app.kernel.lifecycle import (
     KernelBooting, KernelReady, KernelBusy, KernelShutdown,
@@ -14,6 +13,14 @@ from app.kernel.lifecycle import (
     ServiceStopped, ServiceFailed
 )
 from app.events.events import OrionEvent
+
+# Alpha 4.0 Core Runtime Imports
+from app.kernel.container import OrionServiceContainer
+from app.kernel.module import OrionModuleRegistry
+from app.kernel.capability import OrionCapabilityRegistry
+from app.kernel.lifecycle_manager import OrionLifecycleManager
+from app.kernel.config_system import OrionConfigSystem
+from app.kernel.health_monitor import OrionHealthMonitor
 
 class OrionKernel:
     """
@@ -24,10 +31,25 @@ class OrionKernel:
 
     def __init__(self, config: Optional[OrionKernelConfig] = None) -> None:
         """Initialize the OrionKernel."""
-        self._config = config or OrionKernelConfig()
+        # 1. Config System
+        self._config_system = OrionConfigSystem(config or OrionKernelConfig())
+        self._config = self._config_system.get_config()
         self._state = KernelState.STOPPED
-        self._registry = OrionServiceRegistry()
-        self._boot_manager = BootManager(self._registry)
+        
+        # 2. Dependency Container
+        self._container = OrionServiceContainer()
+        self._registry = self._container  # Backward compatibility mapping
+        
+        # 3. Module & Capability Registries
+        self._module_registry = OrionModuleRegistry()
+        self._capability_registry = OrionCapabilityRegistry()
+        
+        # 4. Lifecycle & Health Monitoring
+        self._lifecycle_manager = OrionLifecycleManager(self._module_registry)
+        self._health_monitor = OrionHealthMonitor()
+        
+        # 5. Core context & subscribers
+        self._boot_manager = BootManager(self._container)
         self._context: Optional[OrionKernelContext] = None
         self._local_subscribers: Dict[str, List[Callable[[OrionEvent], Any]]] = {}
 
@@ -43,9 +65,33 @@ class OrionKernel:
         """Resets the singleton instance."""
         cls._instance = None
 
+    @property
+    def config_system(self) -> OrionConfigSystem:
+        return self._config_system
+
+    @property
+    def container(self) -> OrionServiceContainer:
+        return self._container
+
+    @property
+    def module_registry(self) -> OrionModuleRegistry:
+        return self._module_registry
+
+    @property
+    def capability_registry(self) -> OrionCapabilityRegistry:
+        return self._capability_registry
+
+    @property
+    def lifecycle_manager(self) -> OrionLifecycleManager:
+        return self._lifecycle_manager
+
+    @property
+    def health_monitor(self) -> OrionHealthMonitor:
+        return self._health_monitor
+
     async def boot(self) -> None:
         """
-        Triggers the BootManager startup timeline.
+        Triggers the BootManager startup timeline and runs module lifecycles.
         """
         if self._state != KernelState.STOPPED and self._state != KernelState.ERROR:
             logger.warning(f"Kernel is already booted or booting. Current state: {self._state}")
@@ -61,7 +107,14 @@ class OrionKernel:
         self._state = KernelState.INITIALIZING
         
         try:
+            # 1. Run Boot sequence mapping modules & DI Container registrations
             self._context = await self._boot_manager.run_boot_sequence(self._config)
+            
+            # 2. Transition all module lifecycles
+            logger.info("Initializing and starting registered modules...")
+            await self._lifecycle_manager.initialize_all()
+            await self._lifecycle_manager.start_all()
+
             self._state = KernelState.READY
             self._context.state = KernelState.READY
             
@@ -94,18 +147,13 @@ class OrionKernel:
         shutdown_event = KernelShutdown(reason="Graceful system shutdown")
         await self.publish(shutdown_event)
         
-        # Stop scheduler/services if they expose stop/shutdown hooks
-        scheduler = self.get_service("scheduler")
-        if scheduler and hasattr(scheduler, "stop"):
-            try:
-                if inspect.iscoroutinefunction(scheduler.stop):
-                    await scheduler.stop()
-                else:
-                    scheduler.stop()
-            except Exception as e:
-                logger.error(f"Error stopping scheduler during shutdown: {str(e)}")
-                
-        # Unregister all services
+        # Shutdown all modules using topological reverse order
+        try:
+            await self._lifecycle_manager.shutdown_all()
+        except Exception as e:
+            logger.error(f"Error during lifecycle shutdown: {str(e)}")
+
+        # Unregister all services from the container
         services = self.list_services()
         for name in services:
             self.unregister_service(name)
@@ -128,14 +176,18 @@ class OrionKernel:
 
     def register_service(self, name: str, service: Any, lazy: bool = False) -> None:
         """
-        Registers a dependency in the registry.
-
-        Args:
-            name (str): Service name.
-            service (Any): Service instance or factory callable.
-            lazy (bool): If True, instantiates on first access.
+        Registers a dependency in the container registry (Backward compatibility wrapper).
         """
-        self._registry.register(name, service, lazy=lazy)
+        self._container.register(name, service, lazy=lazy)
+        
+        # Register in the module registry as well to support lifecycle transitions
+        self._module_registry.register_module(
+            name=name,
+            version="1.0.0",
+            dependencies=[],
+            instance_or_factory=service,
+            lazy=lazy
+        )
         
         # Flush local callbacks to new event bus if event bus was just registered
         if name == "event_bus":
@@ -160,11 +212,8 @@ class OrionKernel:
     def unregister_service(self, name: str) -> None:
         """
         Deregisters a service from registry.
-
-        Args:
-            name (str): Service name.
         """
-        self._registry.unregister(name)
+        self._container.unregister(name)
         
         # Publish ServiceStopped event
         try:
@@ -182,30 +231,22 @@ class OrionKernel:
     def get_service(self, name: str) -> Optional[Any]:
         """
         Resolves a service from container registry.
-
-        Args:
-            name (str): Service name.
-
-        Returns:
-            Optional[Any]: Registered service.
         """
-        return self._registry.get(name)
+        try:
+            return self._container.get(name)
+        except KeyError:
+            return None
 
     def list_services(self) -> List[str]:
         """
         Lists all registered service names.
-
-        Returns:
-            List[str]: Service name identifiers.
         """
-        return self._registry.list_services()
+        return self._container.list_services()
 
     def health(self) -> KernelHealth:
         """
-        Retrieves the consolidated health state of the entire system.
-
-        Returns:
-            KernelHealth: Consolidated health status.
+        Consolidates the active health checks of the registered subsystems,
+        falling back to default checks for backward compatibility.
         """
         planner_svc = self.get_service("planner")
         knowledge_svc = self.get_service("knowledge_engine")
@@ -215,6 +256,7 @@ class OrionKernel:
         workflow_svc = self.get_service("workflow_engine")
         scheduler_svc = self.get_service("scheduler")
         llm_svc = self.get_service("llm_router")
+        agents_svc = self.get_service("agent_coordinator")
         
         p_health = check_service_health("planner", planner_svc) if planner_svc else SubsystemHealth(name="planner", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         k_health = check_service_health("knowledge", knowledge_svc) if knowledge_svc else SubsystemHealth(name="knowledge", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
@@ -233,8 +275,9 @@ class OrionKernel:
         w_health = check_service_health("workflow", workflow_svc) if workflow_svc else SubsystemHealth(name="workflow", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         s_health = check_service_health("scheduler", scheduler_svc) if scheduler_svc else SubsystemHealth(name="scheduler", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         l_health = check_service_health("llm", llm_svc) if llm_svc else SubsystemHealth(name="llm", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        a_health = check_service_health("agents", agents_svc) if agents_svc else SubsystemHealth(name="agents", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         
-        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, mi_health.status]
+        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, mi_health.status, a_health.status]
         if HealthStatus.ERROR in statuses or self._state == KernelState.ERROR:
             overall = HealthStatus.ERROR
         elif HealthStatus.WARNING in statuses:
@@ -243,6 +286,17 @@ class OrionKernel:
             overall = HealthStatus.UNKNOWN
         else:
             overall = HealthStatus.HEALTHY
+
+        # Populate the dynamic health monitor
+        self._health_monitor.report_health("planner", p_health.status, p_health.message)
+        self._health_monitor.report_health("knowledge", k_health.status, k_health.message)
+        self._health_monitor.report_health("memory", memory_health.status, memory_health.message)
+        self._health_monitor.report_health("desktop", d_health.status, d_health.message)
+        self._health_monitor.report_health("mission", mi_health.status, mi_health.message)
+        self._health_monitor.report_health("workflow", w_health.status, w_health.message)
+        self._health_monitor.report_health("scheduler", s_health.status, s_health.message)
+        self._health_monitor.report_health("llm", l_health.status, l_health.message)
+        self._health_monitor.report_health("agents", a_health.status, a_health.message)
             
         return KernelHealth(
             kernel_status=overall,
@@ -253,24 +307,19 @@ class OrionKernel:
             mission=mi_health,
             workflow=w_health,
             scheduler=s_health,
-            llm=l_health
+            llm=l_health,
+            agents=a_health
         )
 
     def state(self) -> KernelState:
         """
         Retrieves the current runtime state of the Kernel.
-
-        Returns:
-            KernelState: Current status.
         """
         return self._state
 
     def context(self) -> OrionKernelContext:
         """
         Retrieves the global context object.
-
-        Returns:
-            OrionKernelContext: Context state mapping.
         """
         if self._context is None:
             user_ctx = UserContext()
@@ -294,9 +343,6 @@ class OrionKernel:
     async def publish(self, event: OrionEvent) -> None:
         """
         Broadcasts an event to the EventBus gateway.
-
-        Args:
-            event (OrionEvent): Target event.
         """
         event_bus = self.get_service("event_bus")
         if event_bus:
@@ -315,10 +361,6 @@ class OrionKernel:
     def subscribe(self, event_type: str, callback: Callable[[OrionEvent], Any]) -> None:
         """
         Registers a subscriber callback in the EventBus topic.
-
-        Args:
-            event_type (str): Event topic.
-            callback (Callable): Callback executor.
         """
         if event_type not in self._local_subscribers:
             self._local_subscribers[event_type] = []

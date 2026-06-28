@@ -1,6 +1,14 @@
 import { BaseProvider } from './BaseProvider.js';
 import { GoogleGenAI } from '@google/genai';
 
+const MODEL_TOKEN_LIMITS = {
+  'gemini-1.5-flash': 1048576,
+  'gemini-1.5-pro': 2097152,
+  'gemini-2.0-flash': 1048576,
+  'gemini-2.5-flash': 1048576,
+  'gemini-2.5-pro': 2097152
+};
+
 /**
  * Adapter provider for Google Gemini models.
  * @extends BaseProvider
@@ -36,6 +44,29 @@ export class GeminiProvider extends BaseProvider {
     }));
   }
 
+  async estimateTokens(messages) {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+
+    try {
+      const contents = this._formatMessages(messages);
+      const res = await this.ai.models.countTokens({
+        model: this.modelName,
+        contents: contents
+      });
+      if (res && typeof res.totalTokens === 'number') {
+        return res.totalTokens;
+      }
+    } catch (e) {
+      console.warn("Failed to count tokens using API, falling back to estimation:", e.message);
+    }
+
+    // Character-based fallback (~3.5 chars per token)
+    const totalChars = messages.reduce((acc, m) => acc + (m.content ? m.content.length : 0), 0);
+    return Math.ceil(totalChars / 3.5);
+  }
+
   async chat(messages, options = {}) {
     if (!this.initialized) {
       await this.initialize();
@@ -53,9 +84,16 @@ export class GeminiProvider extends BaseProvider {
       });
 
       const responseText = response.text || '';
-      const promptText = messages.map(m => m.content).join(' ');
-      const promptTokens = Math.max(1, Math.floor(promptText.length / 4));
-      const completionTokens = Math.max(1, Math.floor(responseText.length / 4));
+      let promptTokens = response.usageMetadata?.promptTokenCount;
+      let completionTokens = response.usageMetadata?.candidatesTokenCount;
+
+      if (promptTokens == null || completionTokens == null) {
+        const estTotal = await this.estimateTokens(messages);
+        const promptText = messages.map(m => m.content).join(' ');
+        const promptRatio = promptText.length / (promptText.length + responseText.length || 1);
+        promptTokens = Math.max(1, Math.round(estTotal * promptRatio));
+        completionTokens = Math.max(1, estTotal - promptTokens);
+      }
 
       return {
         text: responseText,
@@ -92,13 +130,39 @@ export class GeminiProvider extends BaseProvider {
         }
       });
 
+      let lastUsage = null;
+
       for await (const chunk of responseStream) {
-        const text = chunk.text;
-        if (text) {
-          yield text;
+        if (options.signal?.aborted) {
+          throw new DOMException("The operation was aborted.", "AbortError");
         }
+        const text = chunk.text || "";
+        
+        if (chunk.usageMetadata) {
+          lastUsage = {
+            promptTokens: chunk.usageMetadata.promptTokenCount,
+            completionTokens: chunk.usageMetadata.candidatesTokenCount,
+            totalTokens: chunk.usageMetadata.totalTokenCount
+          };
+        }
+
+        yield {
+          text: text,
+          done: false,
+          usage: lastUsage
+        };
       }
+
+      // Final done chunk emitting real usage
+      yield {
+        text: "",
+        done: true,
+        usage: lastUsage
+      };
     } catch (err) {
+      if (err.name === 'AbortError' || (options.signal && options.signal.aborted)) {
+        throw err;
+      }
       console.error("Gemini API generateContentStream error:", err.message);
       throw new Error(`Gemini API Streaming Error: ${err.message}`);
     }
@@ -118,9 +182,9 @@ export class GeminiProvider extends BaseProvider {
 
   async getModelInfo() {
     return {
-      name: this.modelName,
-      maxContextTokens: 1048576,
-      type: "llm"
+      model: this.modelName,
+      contextLimit: MODEL_TOKEN_LIMITS[this.modelName] || 1048576,
+      provider: "gemini"
     };
   }
 }

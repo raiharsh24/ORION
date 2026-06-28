@@ -1,34 +1,31 @@
 from fastapi import APIRouter, Depends
 from app.models.schemas import AskRequest, AskResponse, ChatRequest, TelemetryDetail
 from app.orion import OrionOrchestrator, IntentClassifier, PromptManager
-from app.llm import GeminiAdapter, LLMRouter
+from app.llm import LLMRouter
 from app.memory import EmbeddingsManager
 from app.core.config import settings
 from app.core.dependencies import memory_store, tool_registry
 from fastapi.responses import StreamingResponse
+from app.kernel import OrionKernel, KernelState
 
 router = APIRouter()
 
-def get_orchestrator() -> OrionOrchestrator:
-    gemini = GeminiAdapter(
-        api_key=settings.GEMINI_API_KEY,
-        model_name=settings.MODEL_NAME,
-        temperature=settings.TEMPERATURE,
-        max_tokens=settings.MAX_TOKENS,
-        top_p=settings.TOP_P
-    )
-    
-    router_llm = LLMRouter()
-    router_llm.register_provider("gemini", gemini, is_default=True)
+async def get_orchestrator() -> OrionOrchestrator:
+    kernel = OrionKernel.get_instance()
+    if kernel.state() != KernelState.READY:
+        await kernel.boot()
+        
+    llm_router = kernel.get_service("llm_router")
+    memory = kernel.get_service("memory_engine")
     
     intent_classifier = IntentClassifier()
     prompt_manager = PromptManager()
     embeddings = EmbeddingsManager()
     
     return OrionOrchestrator(
-        llm_router=router_llm,
+        llm_router=llm_router,
         intent_classifier=intent_classifier,
-        memory=memory_store,
+        memory=memory,
         prompt_manager=prompt_manager,
         tool_registry=tool_registry,
         embeddings=embeddings

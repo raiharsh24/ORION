@@ -75,3 +75,4 @@ async def test_desktop_automation_queue_lifecycle():
     
     # Teardown
     await automation.shutdown()
+    kernel.reset_instance()

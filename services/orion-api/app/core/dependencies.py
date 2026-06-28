@@ -38,8 +38,8 @@ retrieval_engine = RetrievalEngine(vector_db, embeddings_manager)
 
 # Register Action Engine tools
 tool_registry.register("browser", BrowserTool())
-tool_registry.register("filesystem", FilesystemTool())
-tool_registry.register("terminal", TerminalTool())
+tool_registry.register("filesystem", FilesystemTool(workspace_root))
+tool_registry.register("terminal", TerminalTool(workspace_root))
 tool_registry.register("clipboard", ClipboardTool())
 tool_registry.register("open_app", OpenAppTool())
 tool_registry.register("knowledge.search", KnowledgeSearchTool(retrieval_engine))

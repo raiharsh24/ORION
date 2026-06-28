@@ -35,6 +35,10 @@ class GeminiAdapter(BaseLLM):
 
     def _get_model(self) -> genai.GenerativeModel:
         if not self.api_key or not self.api_key.strip():
+            from app.core.config import settings as core_settings
+            self.api_key = core_settings.GEMINI_API_KEY
+
+        if not self.api_key or not self.api_key.strip():
             raise ValueError("GEMINI_API_KEY is missing or empty. Please verify settings.")
         
         if not self._initialized:

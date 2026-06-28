@@ -36,6 +36,9 @@ if (config.nodeEnv === 'development') {
   app.use(morgan('combined'));
 }
 
+// Apply rate limiter to all API endpoints BEFORE route registrations
+app.use('/api', limiter);
+
 // ---------------- Public Endpoints ----------------
 
 // GET /health
@@ -53,22 +56,28 @@ app.get('/status', (req, res) => {
   });
 });
 
-// ---------------- API Endpoints ----------------
-
-// Apply rate limiter to all API endpoints
-app.use('/api', limiter);
-
-// Register API routes at both root and /api paths for total client flexibility
-app.use('/api', apiRouter);
-app.use('/', apiRouter);
-
-// Reverse-proxy system kernel operations to the Python core server
+// ---------------- Proxy Endpoints (Targeting Python Core) ----------------
+app.use(['/ask', '/api/ask'], pythonProxy());
 app.use(['/kernel', '/api/kernel'], pythonProxy());
 app.use(['/missions', '/api/missions'], pythonProxy());
 app.use(['/telemetry', '/api/telemetry'], pythonProxy());
 app.use(['/workflows', '/api/workflows'], pythonProxy());
 app.use(['/workspace', '/api/workspace'], pythonProxy());
 app.use(['/knowledge', '/api/knowledge'], pythonProxy());
+
+// ---------------- API Endpoints ----------------
+
+// Register API routes at both root and /api paths for total client flexibility
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
+
+// 404 fallthrough handler at the bottom
+app.use((req, res, next) => {
+  res.status(404).json({
+    success: false,
+    error: "API resource not found."
+  });
+});
 
 // Global unhandled error handler middleware
 app.use(errorHandler);

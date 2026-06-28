@@ -30,20 +30,27 @@ export class StreamManager {
     }
 
     let fullText = "";
+    let finalUsage = null;
     try {
       // Modern JS supports AsyncIterables for LLM stream payloads.
       // This loops through each chunk as it arrives from the LLM provider.
       for await (const chunk of rawStream) {
-        fullText += chunk;
+        const text = typeof chunk === 'string' ? chunk : (chunk.text || '');
+        fullText += text;
         
+        if (chunk && chunk.usage) {
+          finalUsage = chunk.usage;
+        }
+
         const chunkEnvelope = ResponseFormatter.format({
           success: true,
-          response: chunk,
-          metadata: { isChunk: true }
+          response: text,
+          usage: chunk.usage || {},
+          metadata: { isChunk: true, done: chunk.done || false }
         });
 
         if (onChunk) {
-          onChunk(chunk, chunkEnvelope);
+          onChunk(text, chunkEnvelope);
         }
       }
 
@@ -51,6 +58,7 @@ export class StreamManager {
       const finalEnvelope = ResponseFormatter.format({
         success: true,
         response: fullText,
+        usage: finalUsage || {},
         metadata: { streamCompleted: true }
       });
 

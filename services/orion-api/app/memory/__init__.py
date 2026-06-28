@@ -1,4 +1,13 @@
-from app.memory.conversation import ConversationMemory, ChatMessage
+from app.memory.engine import MemoryEngine
+from app.memory.conversation import ChatMessage
 from app.memory.embeddings import EmbeddingsManager
 
-__all__ = ["ConversationMemory", "ChatMessage", "EmbeddingsManager"]
+# Alias ConversationMemory to MemoryEngine for backward compatibility
+ConversationMemory = MemoryEngine
+
+__all__ = [
+    "MemoryEngine",
+    "ConversationMemory",
+    "ChatMessage",
+    "EmbeddingsManager"
+]
