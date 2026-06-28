@@ -35,15 +35,15 @@ class MemoryEngine:
         else:
             store = InMemoryStore()
             
-        event_bus = kernel.get_service("event_bus")
-        self._manager = MemoryManager(store=store, event_bus=event_bus)
+        self._event_bus = kernel.get_service("event_bus")
+        self._manager = MemoryManager(store=store, event_bus=self._event_bus)
 
         # Register EventBus subscribers
-        if event_bus:
-            event_bus.subscribe("ConversationCompleted", self._manager.on_conversation_completed)
-            event_bus.subscribe("ToolCompleted", self._manager.on_tool_completed)
-            event_bus.subscribe("MissionCompleted", self._manager.on_mission_completed)
-            event_bus.subscribe("WorkflowCompleted", self._manager.on_workflow_completed)
+        if self._event_bus:
+            self._event_bus.subscribe("ConversationCompleted", self._manager.on_conversation_completed)
+            self._event_bus.subscribe("ToolCompleted", self._manager.on_tool_completed)
+            self._event_bus.subscribe("MissionCompleted", self._manager.on_mission_completed)
+            self._event_bus.subscribe("WorkflowCompleted", self._manager.on_workflow_completed)
             logger.info("MemoryEngine EventBus hook callbacks registered successfully.")
 
         self._initialized = True
@@ -56,8 +56,14 @@ class MemoryEngine:
     async def shutdown(self) -> None:
         """Lifecycle shutdown/persist hook."""
         logger.info("Shutting down MemoryEngine...")
+        if self._event_bus and self._manager:
+            self._event_bus.unsubscribe("ConversationCompleted", self._manager.on_conversation_completed)
+            self._event_bus.unsubscribe("ToolCompleted", self._manager.on_tool_completed)
+            self._event_bus.unsubscribe("MissionCompleted", self._manager.on_mission_completed)
+            self._event_bus.unsubscribe("WorkflowCompleted", self._manager.on_workflow_completed)
         if self._manager and hasattr(self._manager._store, "save"):
             self._manager._store.save()
+        self._initialized = False
         logger.info("MemoryEngine shut down successfully.")
 
     def health(self) -> Dict[str, Any]:

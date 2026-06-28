@@ -2,10 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 import time
 
-class ChatMessage(BaseModel):
-    role: str  # 'user' or 'assistant'
-    content: str
-    timestamp: float = Field(default_factory=time.time)
+from app.memory.schema import ChatMessage
 
 class ChatSession(BaseModel):
     session_id: str

@@ -37,10 +37,9 @@ class FilesystemTool(BaseTool):
             return True
         if op == "write" and path:
             try:
-                resolved_path = self._safe_resolve(path)
-                if resolved_path.exists():
+                if os.path.exists(path):
                     return True
-            except Exception:
+            except OSError:
                 pass
         return False
 

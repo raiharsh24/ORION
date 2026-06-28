@@ -8,7 +8,6 @@ from app.kernel.state import KernelState
 
 # Core Subsystem Imports
 from app.events.bus import EventBus
-from app.memory.conversation import ConversationMemory
 from app.orion.vectordb import VectorDB
 from app.memory.embeddings import EmbeddingsManager
 from app.orion.retrieval import RetrievalEngine
@@ -231,6 +230,7 @@ class BootManager:
 
             agent_scheduler = AgentScheduler(event_bus=event_bus)
             self._container.register_singleton("agent_scheduler", agent_scheduler)
+            kernel.module_registry.register_module("agent_scheduler", "1.0.0", ["event_bus"], agent_scheduler)
 
             agent_telemetry = AgentTelemetry(event_bus=event_bus)
             self._container.register_singleton("agent_telemetry", agent_telemetry)
@@ -247,8 +247,6 @@ class BootManager:
                 event_bus=event_bus
             )
             self._container.register_singleton("agent_coordinator", agent_coordinator)
-
-            await agent_scheduler.start()
 
             kernel.capability_registry.register_capability(
                 name="Agents",
@@ -288,6 +286,7 @@ class BootManager:
                 shared_context=shared_context
             )
             await agent_registry.register(workflow_worker)
+            workflow_worker.set_context(shared_context)
             self._container.register_singleton("workflow_worker_agent", workflow_worker)
 
             runtime_executor = WorkflowRuntimeExecutor(

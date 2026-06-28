@@ -195,11 +195,12 @@ class KnowledgeEngine:
             event_bus=event_bus
         )
 
-        if event_bus:
-            event_bus.subscribe("MemoryUpdated", self.on_memory_updated)
-            event_bus.subscribe("ToolCompleted", self.on_tool_completed)
-            event_bus.subscribe("MissionCompleted", self.on_mission_completed)
-            event_bus.subscribe("WorkflowCompleted", self.on_workflow_completed)
+        self._event_bus = event_bus
+        if self._event_bus:
+            self._event_bus.subscribe("MemoryUpdated", self.on_memory_updated)
+            self._event_bus.subscribe("ToolCompleted", self.on_tool_completed)
+            self._event_bus.subscribe("MissionCompleted", self.on_mission_completed)
+            self._event_bus.subscribe("WorkflowCompleted", self.on_workflow_completed)
 
         self._initialized = True
         logger.info("KnowledgeEngine initialized successfully.")
@@ -209,6 +210,12 @@ class KnowledgeEngine:
 
     async def shutdown(self) -> None:
         logger.info("KnowledgeEngine service shut down.")
+        if self._event_bus:
+            self._event_bus.unsubscribe("MemoryUpdated", self.on_memory_updated)
+            self._event_bus.unsubscribe("ToolCompleted", self.on_tool_completed)
+            self._event_bus.unsubscribe("MissionCompleted", self.on_mission_completed)
+            self._event_bus.unsubscribe("WorkflowCompleted", self.on_workflow_completed)
+        self._initialized = False
 
     def health(self) -> Dict[str, Any]:
         if not self._initialized or not self._manager:

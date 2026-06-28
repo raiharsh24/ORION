@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { API_BASE_URL } from '../config/api';
 
+let currentAbortController: AbortController | null = null;
+
 export interface SystemLog {
   id: string;
   timestamp: string;
@@ -93,6 +95,7 @@ interface SystemState {
   sendMessageStream: (prompt: string, confirmed?: boolean, confirmationToken?: string | null) => Promise<void>;
   confirmPendingAction: () => Promise<void>;
   cancelPendingAction: () => void;
+  cancelCurrentRequest: () => void;
   createNewSession: () => void;
 
   // Knowledge Engine Actions
@@ -217,12 +220,20 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       set({ streamingMessage: '' });
     }
 
+    const startTime = Date.now();
+    if (currentAbortController) {
+      currentAbortController.abort();
+    }
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+
     try {
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: abortController.signal,
         body: JSON.stringify({
           prompt: prompt,
           session_id: sessionId,
@@ -329,6 +340,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
       const decoder = new TextDecoder('utf-8');
       let accumulated = '';
       let buffer = '';
+      let streamUsage: TelemetryDetail | null = null;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -358,6 +370,15 @@ export const useSystemStore = create<SystemState>((set, get) => ({
               
               if (parsed.metadata?.streamCompleted) {
                 accumulated = assistantText;
+                const u = parsed.usage;
+                if (u) {
+                  streamUsage = {
+                    model: parsed.provider || 'gemini-1.5-flash',
+                    prompt_tokens: u.promptTokens ?? 0,
+                    completion_tokens: u.completionTokens ?? 0,
+                    total_tokens: u.totalTokens ?? 0
+                  };
+                }
               } else {
                 accumulated += assistantText;
               }
@@ -392,26 +413,20 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         const lastIntent = details.context?.replace("Intent: ", "") || "CHAT";
         const toolUsed = details.tool_used || null;
         const toolOutput = details.tool_output || null;
-        
-        const pTokens = Math.max(2, Math.floor(prompt.length / 4));
-        const cTokens = Math.max(2, Math.floor(accumulated.length / 4));
-        
+
         set({
           lastIntent,
           lastToolUsed: toolUsed,
-          lastExecutionTimeMs: 150 + Math.floor(Math.random() * 90),
-          lastTelemetry: {
-            model: 'gemini-1.5-flash',
-            prompt_tokens: pTokens,
-            completion_tokens: cTokens,
-            total_tokens: pTokens + cTokens
-          }
+          lastExecutionTimeMs: details.execution_time_ms || (Date.now() - startTime),
+          lastTelemetry: streamUsage
         });
 
         if (toolUsed) {
           addLog(`Tool Executed: ${toolUsed}. Result: ${toolOutput || 'Success'}`, 'success');
         }
       }
+
+      currentAbortController = null;
     } catch (err: any) {
       console.error(err);
       addLog(`Streaming connection failed: ${err.message}`, 'error');
@@ -430,9 +445,10 @@ export const useSystemStore = create<SystemState>((set, get) => ({
           prompt_tokens: 0,
           completion_tokens: 0,
           total_tokens: 0,
-          error: err.message
-        }
+        error: err.message
+      }
       }));
+      currentAbortController = null;
     }
   },
 
@@ -456,6 +472,13 @@ export const useSystemStore = create<SystemState>((set, get) => ({
     set((state) => ({
       chatMessages: [...state.chatMessages, cancelMsg]
     }));
+  },
+
+  cancelCurrentRequest: () => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+      currentAbortController = null;
+    }
   },
 
   createNewSession: () => {

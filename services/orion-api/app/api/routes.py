@@ -4,7 +4,7 @@ from app.orion import OrionOrchestrator, IntentClassifier, PromptManager
 from app.llm import LLMRouter
 from app.memory import EmbeddingsManager
 from app.core.config import settings
-from app.core.dependencies import memory_store, tool_registry
+from app.core.dependencies import tool_registry
 from fastapi.responses import StreamingResponse
 from app.kernel import OrionKernel, KernelState
 
@@ -18,6 +18,7 @@ async def get_orchestrator() -> OrionOrchestrator:
     llm_router = kernel.get_service("llm_router")
     memory = kernel.get_service("memory_engine")
     runtime_bridge = kernel.get_service("runtime_scheduler_bridge")
+    event_bus = kernel.get_service("event_bus")
     
     intent_classifier = IntentClassifier()
     prompt_manager = PromptManager()
@@ -31,6 +32,7 @@ async def get_orchestrator() -> OrionOrchestrator:
         tool_registry=tool_registry,
         embeddings=embeddings,
         runtime_bridge=runtime_bridge,
+        event_bus=event_bus,
     )
 
 @router.post("/ask", response_model=AskResponse)
@@ -44,7 +46,7 @@ async def ask(
         confirmed=request.confirmed,
         confirmation_token=request.confirmation_token
     )
-    
+
     telemetry_detail = None
     if result.telemetry:
         telemetry_detail = TelemetryDetail(

@@ -5,8 +5,7 @@ from loguru import logger
 from typing import List, Dict, Any, AsyncGenerator, Optional
 
 from app.orion.intent import IntentClassifier, IntentType
-from app.memory.conversation import ConversationMemory
-from app.memory.embeddings import EmbeddingsManager
+from app.memory import ConversationMemory, EmbeddingsManager
 from app.orion.prompt_manager import PromptManager
 from app.orion.context import SystemContext
 from app.orion.tool_registry import ToolRegistry
@@ -15,6 +14,7 @@ from app.orion.response import OrionResponse, OrionTelemetry
 from app.orion.planner import Planner
 from app.orion.executor import ToolExecutor
 from app.orion.plan_adapter import execution_plan_to_input, extract_tool_output, format_tool_output_for_prompt
+from app.events.events import OrionEvent
 
 class OrionOrchestrator:
     """
@@ -30,6 +30,7 @@ class OrionOrchestrator:
         tool_registry: ToolRegistry,
         embeddings: EmbeddingsManager,
         runtime_bridge: Optional[Any] = None,
+        event_bus: Optional[Any] = None,
     ) -> None:
         self.llm_router = llm_router
         self.intent_classifier = intent_classifier
@@ -40,6 +41,7 @@ class OrionOrchestrator:
         self.planner = Planner()
         self.tool_executor = ToolExecutor(tool_registry)
         self._runtime_bridge = runtime_bridge
+        self._event_bus = event_bus
         logger.info("OrionOrchestrator coordinates initialized with Action Engine modules.")
 
     def _estimate_tokens(self, text: str) -> int:
@@ -99,6 +101,11 @@ class OrionOrchestrator:
         start_time = time.time()
         sess_id = session_id or str(uuid.uuid4())
         
+        if self._event_bus:
+            self._event_bus.publish_background(OrionEvent(topic="ConversationReceived", data={
+                "session_id": sess_id, "prompt": prompt
+            }))
+        
         logger.info(f"Incoming request: session={sess_id}, provider={provider_name}")
 
         # 1. Intent Classifier
@@ -108,12 +115,26 @@ class OrionOrchestrator:
         # 2. Planner & Tool Execution
         tool_used = None
         tool_output = ""
-        
+
         plan = await self.planner.plan(prompt, intent)
         if plan:
             tool_used = plan.tool_name
 
             if self._runtime_bridge and plan.steps:
+                # Check confirmation before Workflow Runtime path
+                if not confirmed:
+                    conf_check = await self.tool_executor.check_confirmation(plan)
+                    if conf_check and conf_check.confirmation_required:
+                        latency_ms = (time.time() - start_time) * 1000
+                        return OrionResponse(
+                            success=False, intent=intent.value,
+                            response=conf_check.output, tool_used=tool_used,
+                            session_id=sess_id, execution_time_ms=latency_ms,
+                            telemetry=OrionTelemetry(model=provider_name, error="ConfirmationRequired"),
+                            confirmation_required=True,
+                            confirmation_token=conf_check.confirmation_token
+                        )
+
                 runtime_input = execution_plan_to_input(plan)
                 workflow = await self._runtime_bridge.submit_and_wait(runtime_input)
                 tool_outputs = extract_tool_output(workflow)
@@ -127,12 +148,9 @@ class OrionOrchestrator:
                 if exec_result.confirmation_required:
                     latency_ms = (time.time() - start_time) * 1000
                     return OrionResponse(
-                        success=False,
-                        intent=intent.value,
-                        response=exec_result.output,
-                        tool_used=tool_used,
-                        session_id=sess_id,
-                        execution_time_ms=latency_ms,
+                        success=False, intent=intent.value,
+                        response=exec_result.output, tool_used=tool_used,
+                        session_id=sess_id, execution_time_ms=latency_ms,
                         telemetry=OrionTelemetry(model=provider_name, error="ConfirmationRequired"),
                         confirmation_required=True,
                         confirmation_token=exec_result.confirmation_token
@@ -235,6 +253,11 @@ class OrionOrchestrator:
         self.memory.update_context(sess_id, f"Intent: {intent.value}")
         logger.info(f"Memory updates: logged chat message and context for session {sess_id}.")
 
+        if self._event_bus:
+            self._event_bus.publish_background(OrionEvent(topic="ConversationCompleted", data={
+                "session_id": sess_id, "turn_count": len(self.memory.get_session(sess_id).messages) if self.memory.get_session(sess_id) else 0
+            }))
+
         # 7. Response Formatter with Telemetry
         latency_ms = (time.time() - start_time) * 1000
         telemetry = await self._calculate_telemetry(provider_name, full_prompt, llm_response)
@@ -260,6 +283,10 @@ class OrionOrchestrator:
         confirmation_token: str | None = None
     ) -> AsyncGenerator[str, None]:
         sess_id = session_id or str(uuid.uuid4())
+        if self._event_bus:
+            self._event_bus.publish_background(OrionEvent(topic="ConversationReceived", data={
+                "session_id": sess_id, "prompt": prompt
+            }))
         logger.info(f"Incoming stream request: session={sess_id}, provider={provider_name}")
 
         intent = await self.intent_classifier.classify(prompt)
@@ -332,4 +359,8 @@ class OrionOrchestrator:
         final_resp = "".join(full_response_accum)
         self.memory.add_message(sess_id, "assistant", final_resp)
         self.memory.update_context(sess_id, f"Intent: {intent.value} (streamed)")
+        if self._event_bus:
+            self._event_bus.publish_background(OrionEvent(topic="ConversationCompleted", data={
+                "session_id": sess_id, "turn_count": len(self.memory.get_session(sess_id).messages) if self.memory.get_session(sess_id) else 0
+            }))
         logger.info(f"Memory updates: logged streamed assistant response for session {sess_id}.")

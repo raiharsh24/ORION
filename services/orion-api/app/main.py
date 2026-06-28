@@ -84,8 +84,11 @@ def create_app() -> FastAPI:
     setup_cors(app)
     app.add_middleware(LoggingMiddleware)
 
-    # Attach endpoint routes
+    # Attach endpoint routes at both root and /api prefix
+    # The root level is for direct FastAPI access (e.g., dev, testing)
     app.include_router(api_router)
+    # The /api prefix matches the Gateway proxy target paths
+    app.include_router(api_router, prefix="/api")
 
     return app
 

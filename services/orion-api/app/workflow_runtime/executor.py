@@ -36,7 +36,7 @@ class WorkflowRuntimeExecutor:
 
         step.status = RuntimeStepStatus.RUNNING
         step.started_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
-        self._publish_event(WorkflowStepStarted(
+        self._event_bus and self._event_bus.publish_background(WorkflowStepStarted(
             workflow.workflow_id, step.step_id, step.name, step.step_type
         ))
 
@@ -73,7 +73,7 @@ class WorkflowRuntimeExecutor:
                     {"result": result, "status": "COMPLETED", "duration_ms": duration_ms}
                 )
 
-            self._publish_event(WorkflowStepCompleted(
+            self._event_bus and self._event_bus.publish_background(WorkflowStepCompleted(
                 workflow.workflow_id, step.step_id, success=True
             ))
             logger.info(f"Step '{step.name}' completed in {duration_ms:.1f}ms")
@@ -84,7 +84,7 @@ class WorkflowRuntimeExecutor:
             step.status = RuntimeStepStatus.FAILED
             step.error = error_msg
             step.completed_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
-            self._publish_event(WorkflowStepCompleted(
+            self._event_bus and self._event_bus.publish_background(WorkflowStepCompleted(
                 workflow.workflow_id, step.step_id, success=False
             ))
             logger.error(f"Step '{step.name}' failed: {error_msg}")
@@ -97,7 +97,8 @@ class WorkflowRuntimeExecutor:
         variables: Dict[str, Any]
     ) -> Dict[str, Any]:
         import asyncio
-        coros = [self.execute_step(workflow, s, variables) for s in steps]
+        step_vars = [dict(variables) for _ in steps]
+        coros = [self.execute_step(workflow, s, sv) for s, sv in zip(steps, step_vars)]
         results = await asyncio.gather(*coros, return_exceptions=True)
 
         merged: Dict[str, Any] = {}
@@ -106,6 +107,7 @@ class WorkflowRuntimeExecutor:
                 merged[step.step_id] = {"error": str(result)}
             else:
                 merged[step.step_id] = result
+                variables[f"{step.step_id}.output"] = result
         return merged
 
     def build_from_plan(self, plan: ExecutionPlanInput) -> RuntimeWorkflow:
@@ -114,11 +116,27 @@ class WorkflowRuntimeExecutor:
 
         for i, step_data in enumerate(plan.steps):
             step_id = step_data.get("step_id", f"step_{i}")
+            step_type = step_data.get("type") or step_data.get("action", "tool")
+            # Map planner action names to workflow step types
+            action_to_type = {
+                "filesystem_op": "tool",
+                "terminal_exec": "tool",
+                "process_prompt": "llm",
+                "knowledge_op": "knowledge",
+            }
+            step_type = action_to_type.get(step_type, step_type)
+            step_input = step_data.get("input") or step_data.get("args", {})
+            # Convert flat planner args (e.g. {"op":"write","path":"..."}) to
+            # the format expected by WorkflowWorkerAgent._execute_tool.
+            # Only rewrite planner-style steps (those with "action" key).
+            if step_data.get("action") and "tool_name" not in step_input and "args" not in step_input:
+                tool_name = plan.metadata.get("tool_name", "")
+                step_input = {"tool_name": tool_name, "args": step_input}
             steps[step_id] = RuntimeStep(
                 step_id=step_id,
                 name=step_data.get("name", f"Step {i}"),
-                step_type=step_data.get("type", "tool"),
-                input=step_data.get("input", {}),
+                step_type=step_type,
+                input=step_input,
                 depends_on=step_data.get("depends_on", []),
                 timeout=step_data.get("timeout"),
                 retry_policy=RetryPolicy(**step_data.get("retry_policy", {})),
@@ -164,18 +182,6 @@ class WorkflowRuntimeExecutor:
             else:
                 result[key] = value
         return result
-
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._event_bus.publish(event))
-        except RuntimeError:
-            asyncio.run(self._event_bus.publish(event))
-        except Exception as e:
-            logger.error(f"Executor event publish failed: {e}")
 
     def health(self) -> Dict:
         return {"status": "HEALTHY", "message": "WorkflowRuntimeExecutor operational."}

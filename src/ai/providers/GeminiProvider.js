@@ -72,8 +72,15 @@ export class GeminiProvider extends BaseProvider {
       await this.initialize();
     }
 
+    if (options.signal?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
+
     try {
       const contents = this._formatMessages(messages);
+      if (options.signal?.aborted) {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
       const response = await this.ai.models.generateContent({
         model: this.modelName,
         contents: contents,
@@ -109,6 +116,9 @@ export class GeminiProvider extends BaseProvider {
         }
       };
     } catch (err) {
+      if (err.name === 'AbortError' || (options.signal && options.signal.aborted)) {
+        throw err;
+      }
       console.error("Gemini API generateContent error:", err.message);
       throw new Error(`Gemini API Error: ${err.message}`);
     }

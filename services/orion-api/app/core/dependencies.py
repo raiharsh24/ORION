@@ -1,5 +1,5 @@
 import os
-from app.memory import ConversationMemory
+from app.memory import MemoryEngine
 from app.orion import ToolRegistry
 from app.tools import (
     BrowserTool, FilesystemTool, TerminalTool,
@@ -16,7 +16,7 @@ from app.capabilities import CapabilityRegistry
 from app.desktop.controller import DesktopController
 
 # Share singletons globally to maintain state
-memory_store = ConversationMemory()
+memory_store = MemoryEngine()
 tool_registry = ToolRegistry()
 capability_registry = CapabilityRegistry()
 

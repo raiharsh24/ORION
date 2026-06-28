@@ -57,6 +57,10 @@ class MemoryManager:
         key = f"session:{session.session_id}"
         session.updated_at = time.time()
         self._store.put(key, MemorySerializer.serialize_session(session))
+        self._safe_publish(MemoryUpdated(
+            memory_id=session.session_id, category="session",
+            data={"session_id": session.session_id, "message_count": len(session.messages)}
+        ))
 
     def get_user_memory(self, user_id: str = "default_user") -> UserMemory:
         key = f"user:{user_id}"

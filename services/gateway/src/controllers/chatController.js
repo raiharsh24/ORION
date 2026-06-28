@@ -68,7 +68,13 @@ export const chatController = async (req, res, next) => {
     }
 
     // Call OrionEngine's standard chat workflow
-    const response = await engine.chat(activeSessionId, activeMessage);
+    abortController = new AbortController();
+    req.on('close', () => {
+      abortController.abort();
+    });
+    const response = await engine.chat(activeSessionId, activeMessage, null, {
+      signal: abortController.signal
+    });
     
     return res.status(response.success ? 200 : 500).json(response);
   } catch (error) {

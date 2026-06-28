@@ -90,24 +90,10 @@ class BaseAgent(ABC):
     def _set_status(self, new_status: AgentStatus) -> None:
         old = self._status
         self._status = new_status
-        self._publish_event(AgentStatusChanged(self._agent_id, old.value, new_status.value))
+        if self._event_bus:
+            self._event_bus and self._event_bus.publish_background(AgentStatusChanged(self._agent_id, old.value, new_status.value))
 
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import inspect
-        try:
-            if inspect.iscoroutinefunction(self._event_bus.publish):
-                import asyncio
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
-                except RuntimeError:
-                    asyncio.run(self._event_bus.publish(event))
-            else:
-                self._event_bus.publish(event)
-        except Exception as e:
-            logger.error(f"Agent {self._agent_id} failed to publish event: {e}")
+
 
     async def initialize(self) -> None:
         self._set_status(AgentStatus.INITIALIZING)
@@ -148,7 +134,7 @@ class BaseAgent(ABC):
         task.status = "RUNNING"
         task.started_at = datetime.now(timezone.utc)
         self._set_status(AgentStatus.BUSY)
-        self._publish_event(AgentTaskStarted(task.task_id, self._agent_id))
+        self._event_bus and self._event_bus.publish_background(AgentTaskStarted(task.task_id, self._agent_id))
 
         try:
             if task.timeout and task.timeout > 0:
@@ -164,7 +150,7 @@ class BaseAgent(ABC):
             task.completed_at = datetime.now(timezone.utc)
             task.result = result
             self._tasks_completed += 1
-            self._publish_event(AgentTaskCompleted(task.task_id, self._agent_id, success=True))
+            self._event_bus and self._event_bus.publish_background(AgentTaskCompleted(task.task_id, self._agent_id, success=True))
             self._set_status(AgentStatus.IDLE)
             self._current_task = None
             return result
@@ -174,7 +160,7 @@ class BaseAgent(ABC):
             task.completed_at = datetime.now(timezone.utc)
             task.error = f"Task timed out after {task.timeout}s"
             self._tasks_failed += 1
-            self._publish_event(AgentTaskTimeout(task.task_id, self._agent_id, task.timeout))
+            self._event_bus and self._event_bus.publish_background(AgentTaskTimeout(task.task_id, self._agent_id, task.timeout))
             self._set_status(AgentStatus.IDLE)
             self._current_task = None
             raise
@@ -185,7 +171,7 @@ class BaseAgent(ABC):
             task.completed_at = datetime.now(timezone.utc)
             task.error = error_msg
             self._tasks_failed += 1
-            self._publish_event(AgentTaskFailed(task.task_id, self._agent_id, error_msg))
+            self._event_bus and self._event_bus.publish_background(AgentTaskFailed(task.task_id, self._agent_id, error_msg))
             self._set_status(AgentStatus.IDLE)
             self._current_task = None
             raise
@@ -195,7 +181,7 @@ class BaseAgent(ABC):
             task_id = self._current_task.task_id
             self._current_task.status = "CANCELLED"
             self._current_task.completed_at = datetime.now(timezone.utc)
-            self._publish_event(AgentTaskCancelled(task_id, self._agent_id))
+            self._event_bus and self._event_bus.publish_background(AgentTaskCancelled(task_id, self._agent_id))
             self._current_task = None
             self._set_status(AgentStatus.IDLE)
             logger.info(f"Agent '{self._name}' task {task_id} cancelled.")
@@ -203,13 +189,13 @@ class BaseAgent(ABC):
     async def send_message(self, message: AgentMessage) -> None:
         if self._message_bus:
             await self._message_bus.send(message)
-            self._publish_event(AgentMessageSent(
+            self._event_bus and self._event_bus.publish_background(AgentMessageSent(
                 message.message_id, self._agent_id,
                 message.recipient or "*", message.type
             ))
 
     async def receive_message(self, message: AgentMessage) -> None:
-        self._publish_event(AgentMessageReceived(
+        self._event_bus and self._event_bus.publish_background(AgentMessageReceived(
             message.message_id, self._agent_id,
             message.sender, message.type
         ))

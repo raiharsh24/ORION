@@ -120,6 +120,7 @@ class ExecutionManager:
         start_time = time.time()
         self.execution_count += 1
         self.active_executions += 1
+        tool_output = ""
         
         try:
             # 1. Lookup Capability metadata
@@ -219,6 +220,7 @@ class ExecutionManager:
             try:
                 logger.info(f"Running sandboxed tool '{tool_name}' execution with timeout={cap.timeout}s.")
                 output = await asyncio.wait_for(tool.execute(**args), timeout=cap.timeout)
+                tool_output = str(output)
                 
                 duration = (time.time() - start_time) * 1000.0
                 self.execution_latency_sum += duration
@@ -248,6 +250,10 @@ class ExecutionManager:
             )
         finally:
             self.active_executions -= 1
+            self._safe_publish(OrionEvent(topic="ToolCompleted", data={
+                "tool_name": tool_name, "output": tool_output
+            }))
+
 
 
 class ToolEngine:
@@ -283,11 +289,12 @@ class ToolEngine:
             event_bus=event_bus
         )
         
-        if event_bus:
-            event_bus.subscribe("PlanValidated", self.on_plan_validated)
-            event_bus.subscribe("MissionStarted", self.on_mission_started)
-            event_bus.subscribe("WorkflowStarted", self.on_workflow_started)
-            event_bus.subscribe("MemoryUpdated", self.on_memory_updated)
+        self._event_bus = event_bus
+        if self._event_bus:
+            self._event_bus.subscribe("PlanValidated", self.on_plan_validated)
+            self._event_bus.subscribe("MissionStarted", self.on_mission_started)
+            self._event_bus.subscribe("WorkflowStarted", self.on_workflow_started)
+            self._event_bus.subscribe("MemoryUpdated", self.on_memory_updated)
             
         self._initialized = True
         logger.info("ToolEngine initialized successfully.")
@@ -297,6 +304,12 @@ class ToolEngine:
 
     async def shutdown(self) -> None:
         logger.info("ToolEngine service shut down.")
+        if self._event_bus:
+            self._event_bus.unsubscribe("PlanValidated", self.on_plan_validated)
+            self._event_bus.unsubscribe("MissionStarted", self.on_mission_started)
+            self._event_bus.unsubscribe("WorkflowStarted", self.on_workflow_started)
+            self._event_bus.unsubscribe("MemoryUpdated", self.on_memory_updated)
+        self._initialized = False
 
     def health(self) -> Dict[str, Any]:
         if not self._initialized or not self._manager:

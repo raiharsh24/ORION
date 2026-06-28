@@ -67,7 +67,7 @@ class AgentScheduler:
             created_at=datetime.now(timezone.utc)
         )
         self._jobs[job_id] = job
-        self._publish_event(AgentJobScheduled(job_id, name, schedule_type))
+        self._event_bus and self._event_bus.publish_background(AgentJobScheduled(job_id, name, schedule_type))
         logger.info(f"AgentScheduler: scheduled job '{name}' ({job_id}) type={schedule_type}")
         return job_id
 
@@ -97,10 +97,10 @@ class AgentScheduler:
             bg_task = asyncio.create_task(handler(task))
             self._background_tasks[job_id] = bg_task
             await bg_task
-            self._publish_event(AgentJobCompleted(job_id, success=True))
+            self._event_bus and self._event_bus.publish_background(AgentJobCompleted(job_id, success=True))
         except Exception as e:
             logger.error(f"AgentScheduler: job {job_id} failed: {e}")
-            self._publish_event(AgentJobCompleted(job_id, success=False))
+            self._event_bus and self._event_bus.publish_background(AgentJobCompleted(job_id, success=False))
         finally:
             self._background_tasks.pop(job_id, None)
 
@@ -130,21 +130,7 @@ class AgentScheduler:
                 logger.error(f"AgentScheduler tick error: {e}")
                 await asyncio.sleep(5)
 
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import inspect
-        try:
-            if inspect.iscoroutinefunction(self._event_bus.publish):
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
-                except RuntimeError:
-                    asyncio.run(self._event_bus.publish(event))
-            else:
-                self._event_bus.publish(event)
-        except Exception as e:
-            logger.error(f"AgentScheduler event publish failed: {e}")
+
 
     def health(self) -> Dict[str, Any]:
         return {

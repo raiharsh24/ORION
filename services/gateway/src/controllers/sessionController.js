@@ -100,7 +100,7 @@ export const createSession = async (req, res, next) => {
   try {
     const { session_id, sessionId, provider, metadata } = req.body;
     const targetSessionId = sessionId || session_id || null;
-    const activeProvider = provider || 'mock';
+    const activeProvider = provider || 'gemini';
     const activeMetadata = metadata || {};
 
     const session = await engine.sessionManager.createSession(
