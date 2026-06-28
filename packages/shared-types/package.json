@@ -1,5 +1,5 @@
 {
-  "name": "@orion/shared-types",
+  "name": "@friday/shared-types",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "generate": "openapi-typescript ../../services/orion-api/openapi.json --output ./src/openapi.ts"
+    "generate": "openapi-typescript ../../services/friday-api/openapi.json --output ./src/openapi.ts"
   },
   "devDependencies": {
     "openapi-typescript": "^7.0.0"

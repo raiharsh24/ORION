@@ -43,8 +43,8 @@ export const DeveloperPage: React.FC = () => {
           <CardContent className="space-y-6">
             <div className="space-y-4">
               {[
-                { name: 'ORION_MODEL_PROVIDER', val: 'Gemini 1.5 Flash (v0.4)' },
-                { name: 'ORION_WORKSPACE_DIR', val: '/home/warlock/ORION' },
+                { name: 'FRIDAY_MODEL_PROVIDER', val: 'Gemini 1.5 Flash (v0.4)' },
+                { name: 'FRIDAY_WORKSPACE_DIR', val: '/home/warlock/ORION' },
                 { name: 'SECURE_LINK_PORT', val: '8000' },
               ].map((env, i) => (
                 <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-black/40 border border-matte-border/60 rounded-xl font-mono text-xs">

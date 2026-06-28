@@ -67,7 +67,7 @@ export const chatController = async (req, res, next) => {
       return;
     }
 
-    // Call OrionEngine's standard chat workflow
+    // Call FridayEngine's standard chat workflow
     abortController = new AbortController();
     req.on('close', () => {
       abortController.abort();
@@ -93,7 +93,7 @@ export const chatController = async (req, res, next) => {
 };
 
 /**
- * Controller to handle Server-Sent Events (SSE) chat streams using OrionEngine on /chat/stream.
+ * Controller to handle Server-Sent Events (SSE) chat streams using FridayEngine on /chat/stream.
  */
 export const streamChatController = async (req, res, next) => {
   let abortController = null;

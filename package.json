@@ -1,5 +1,5 @@
 {
-  "name": "orion",
+  "name": "friday",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=desktop\" \"npm run dev --workspace=gateway\"",
-    "generate:types": "cd services/orion-api && ./.venv/bin/python -c \"from main import export_schema; export_schema()\" && cd ../../packages/shared-types && npm run generate"
+    "generate:types": "cd services/friday-api && ./.venv/bin/python -c \"from main import export_schema; export_schema()\" && cd ../../packages/shared-types && npm run generate"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

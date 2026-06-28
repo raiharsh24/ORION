@@ -41,7 +41,7 @@ export const Sidebar: React.FC = () => {
           </div>
           {sidebarOpen && (
             <span className="font-extrabold tracking-[0.15em] text-zinc-100 text-lg uppercase font-sans">
-              ORION
+              FRIDAY
             </span>
           )}
         </div>

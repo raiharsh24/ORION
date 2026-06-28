@@ -1,4 +1,4 @@
-import { OrionEngine } from './index.js';
+import { FridayEngine } from './index.js';
 import { BaseProvider } from './providers/BaseProvider.js';
 import { GeminiProvider } from './providers/GeminiProvider.js';
 
@@ -13,9 +13,9 @@ function assert(condition, message) {
 async function runVerification() {
   console.log("🚀 Starting Conversation Engine verification tests...");
 
-  const engine = new OrionEngine({
+  const engine = new FridayEngine({
     context: { maxMessageCount: 4, maxTokenLimit: 100 },
-    prompt: { systemPrompt: "You are ORION Verification Bot." }
+    prompt: { systemPrompt: "You are FRIDAY Verification Bot." }
   });
 
   const sessionId = "test-session-123";

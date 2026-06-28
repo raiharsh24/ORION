@@ -14,7 +14,7 @@ export const PluginsPage: React.FC = () => {
             Plugin Registry
           </h1>
           <p className="font-mono text-xs text-zinc-500 tracking-wider mt-1 uppercase">
-            Extend ORION OS capabilities with custom neural plugins
+            Extend FRIDAY OS capabilities with custom neural plugins
           </p>
         </div>
         <Button variant="outline" size="sm">
@@ -57,7 +57,7 @@ export const PluginsPage: React.FC = () => {
                 </div>
                 <div>
                   <CardTitle>Docker Control</CardTitle>
-                  <CardDescription className="mt-0.5">v0.8.4 // ORION Core</CardDescription>
+                  <CardDescription className="mt-0.5">v0.8.4 // FRIDAY Core</CardDescription>
                 </div>
               </div>
               <ToggleLeft className="w-8 h-8 text-zinc-600 cursor-pointer" />

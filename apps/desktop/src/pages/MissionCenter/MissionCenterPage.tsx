@@ -133,7 +133,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
       transition={{ duration: 0.4 }}
       className="flex h-[calc(100vh-5rem)] overflow-hidden bg-matte-card text-zinc-100 select-none"
       role="main"
-      aria-label="ORION Mission Center Dashboard"
+      aria-label="FRIDAY Mission Center Dashboard"
     >
       {/* 6. Empty state: Rendered inside subcomponents when no items found */}
       
@@ -151,7 +151,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
         {isOffline && (
           <div className="bg-red-950/20 border-y border-red-900/35 px-6 py-2 flex items-center gap-3 text-[10px] font-mono text-red-400 animate-pulse">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-            <span>Connection offline. Reconnecting to central ORION Kernel API server...</span>
+            <span>Connection offline. Reconnecting to central FRIDAY Kernel API server...</span>
           </div>
         )}
 

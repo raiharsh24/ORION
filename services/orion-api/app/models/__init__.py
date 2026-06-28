@@ -1,1 +1,0 @@
-# ORION Models package

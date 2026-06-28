@@ -11,12 +11,12 @@ implemented. The test suite passes 180/181 tests (1 pre-existing flaky failure
 ### H1 — Unify Session Stores
 
 **Files changed:**
-- `services/orion-api/app/core/dependencies.py` — `memory_store` now instantiates
+- `services/friday-api/app/core/dependencies.py` — `memory_store` now instantiates
   `MemoryEngine` directly instead of depending on the `ConversationMemory` alias.
-- `services/orion-api/app/orion/orchestrator.py` — imports `ConversationMemory`
+- `services/friday-api/app/friday/orchestrator.py` — imports `ConversationMemory`
   from `app.memory` (the `__init__.py` alias) instead of `conversation.py` directly.
-- `services/orion-api/app/kernel/boot.py` — removed unused `ConversationMemory` import.
-- `services/orion-api/app/api/routes.py` — removed unused `memory_store` import.
+- `services/friday-api/app/kernel/boot.py` — removed unused `ConversationMemory` import.
+- `services/friday-api/app/api/routes.py` — removed unused `memory_store` import.
 
 **Result:** Single `MemoryEngine` instance serves as both the type hint and the
 runtime object. The dead `ConversationMemory` class in `conversation.py` remains
@@ -27,7 +27,7 @@ for backward compatibility but is never referenced at runtime.
 ### H2 — Deduplicate ChatMessage Model
 
 **Files changed:**
-- `services/orion-api/app/memory/conversation.py` — replaced the local
+- `services/friday-api/app/memory/conversation.py` — replaced the local
   `ChatMessage` class definition with `from app.models.schemas import ChatMessage`.
 
 **Result:** Single canonical `ChatMessage` Pydantic model. No behavior change.
@@ -37,7 +37,7 @@ for backward compatibility but is never referenced at runtime.
 ### H3 — Concurrent EventBus Dispatch
 
 **Files changed:**
-- `services/orion-api/app/events/bus.py` — `publish()` now groups matched
+- `services/friday-api/app/events/bus.py` — `publish()` now groups matched
   handlers by priority, executes each priority group sequentially (lowest first),
   and runs handlers within each group concurrently via `asyncio.gather()` with
   `return_exceptions=True`.
@@ -50,16 +50,16 @@ preserving ordering guarantees across priority tiers.
 ### H4 — Centralized Fire-and-Forget Publish
 
 **Files changed:**
-- `services/orion-api/app/events/bus.py` — added `publish_background()` that
+- `services/friday-api/app/events/bus.py` — added `publish_background()` that
   creates a supervised `asyncio.Task`, tracks it in `_background_tasks`, and
   auto-discards on completion. Added `shutdown()` to await pending tasks.
-- `services/orion-api/app/agents/base.py` — 8 call sites replaced.
-- `services/orion-api/app/agents/bus.py` — 4 call sites replaced.
-- `services/orion-api/app/agents/coordinator.py` — 5 call sites replaced.
-- `services/orion-api/app/agents/registry.py` — 2 call sites replaced.
-- `services/orion-api/app/agents/scheduler.py` — 3 call sites replaced.
-- `services/orion-api/app/workflow_runtime/executor.py` — 3 call sites replaced.
-- `services/orion-api/app/workflow_runtime/manager.py` — 9 call sites replaced.
+- `services/friday-api/app/agents/base.py` — 8 call sites replaced.
+- `services/friday-api/app/agents/bus.py` — 4 call sites replaced.
+- `services/friday-api/app/agents/coordinator.py` — 5 call sites replaced.
+- `services/friday-api/app/agents/registry.py` — 2 call sites replaced.
+- `services/friday-api/app/agents/scheduler.py` — 3 call sites replaced.
+- `services/friday-api/app/workflow_runtime/executor.py` — 3 call sites replaced.
+- `services/friday-api/app/workflow_runtime/manager.py` — 9 call sites replaced.
 
 **Result:** Eliminated 7 ad-hoc `_publish_event()` methods (34 call sites total).
 All fire-and-forget publish operations use `EventBus.publish_background()`. The
@@ -70,7 +70,7 @@ All fire-and-forget publish operations use `EventBus.publish_background()`. The
 ### H5 — Protect Shared Variables in Parallel Steps
 
 **Files changed:**
-- `services/orion-api/app/workflow_runtime/executor.py` —
+- `services/friday-api/app/workflow_runtime/executor.py` —
   `execute_parallel_steps()` now creates a `dict(variables)` copy per step before
   launching concurrent execution.
 

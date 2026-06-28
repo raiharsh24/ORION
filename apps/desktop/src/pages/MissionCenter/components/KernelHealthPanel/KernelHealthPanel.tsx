@@ -59,7 +59,7 @@ export const KernelHealthPanel: React.FC<KernelHealthPanelProps> = ({
     <div 
       className="p-4.5 border border-matte-border/20 rounded-xl bg-matte-card/30 backdrop-blur-sm flex flex-col gap-4.5"
       role="region"
-      aria-label="ORION Kernel Health Metrics"
+      aria-label="FRIDAY Kernel Health Metrics"
     >
       <div className="flex justify-between items-center border-b border-matte-border/10 pb-3">
         <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-bold">

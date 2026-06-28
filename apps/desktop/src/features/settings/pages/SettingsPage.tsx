@@ -14,7 +14,7 @@ export const SettingsPage: React.FC = () => {
           Settings Panel
         </h1>
         <p className="font-mono text-xs text-zinc-500 tracking-wider mt-1 uppercase">
-          Configure core parameters of the ORION AI Operating System
+          Configure core parameters of the FRIDAY AI Operating System
         </p>
       </div>
 
@@ -34,7 +34,7 @@ export const SettingsPage: React.FC = () => {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Admin Name" defaultValue="Harsh" />
-                <Input label="Workspace Title" defaultValue="Project ORION" />
+                <Input label="Workspace Title" defaultValue="Project FRIDAY" />
               </div>
               <Button size="sm">Save Configuration</Button>
             </CardContent>

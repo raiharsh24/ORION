@@ -1,4 +1,4 @@
-# ORION Core v1.0 Architecture
+# FRIDAY Core v1.0 Architecture
 
 **Tag:** `v1.0`  
 **Generated:** 2026-06-28
@@ -20,11 +20,11 @@
 
 ## System Overview
 
-ORION is a three-tier AI agent platform:
+FRIDAY is a three-tier AI agent platform:
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌──────────────────────────────┐
-│   Desktop UI    │ ◄──► │    Gateway      │ ◄──► │        Orion API             │
+│   Desktop UI    │ ◄──► │    Gateway      │ ◄──► │        Friday API             │
 │  (React/TS)     │     │  (Node.js)      │     │      (Python/FastAPI)         │
 │                 │     │                 │     │                              │
 │  Streaming chat │     │  Auth/Sessions  │     │  Orchestrator ─► Planner     │
@@ -38,7 +38,7 @@ ORION is a three-tier AI agent platform:
 └─────────────────┘     └─────────────────┘     └──────────────────────────────┘
 ```
 
-All production code lives in `services/orion-api/app/` (Python backend), `services/gateway/src/` (Node.js middleware), and `apps/desktop/src/` (React frontend).
+All production code lives in `services/friday-api/app/` (Python backend), `services/gateway/src/` (Node.js middleware), and `apps/desktop/src/` (React frontend).
 
 ---
 
@@ -47,7 +47,7 @@ All production code lives in `services/orion-api/app/` (Python backend), `servic
 ### Boot Sequence
 
 ```
-OrionKernel.boot()
+FridayKernel.boot()
     │
     ├── BootManager.run_boot_sequence(config)
     │       │
@@ -70,7 +70,7 @@ OrionKernel.boot()
 ### Shutdown Sequence
 
 ```
-OrionKernel.shutdown()
+FridayKernel.shutdown()
     │
     ├── Dispatch KernelShutdown event
     ├── LifecycleManager.shutdown_all() (reverse dependency order)
@@ -106,16 +106,16 @@ Desktop UI              Gateway               FastAPI
 
 ## Subsystem Responsibilities
 
-### 1. OrionKernel (`app/kernel/kernel.py`)
+### 1. FridayKernel (`app/kernel/kernel.py`)
 
-Central system kernel managing lifecycle, DI container, module registry, capability registry, health monitoring, and event publication. Singleton accessed via `OrionKernel.get_instance()`.
+Central system kernel managing lifecycle, DI container, module registry, capability registry, health monitoring, and event publication. Singleton accessed via `FridayKernel.get_instance()`.
 
 **Key responsibilities:**
 - Boot/shutdown orchestration via `BootManager` + `LifecycleManager`
-- Service registration and resolution via `OrionServiceContainer`
-- Module lifecycle tracking via `OrionModuleRegistry`
-- Capability indexing via `OrionCapabilityRegistry`
-- Health check aggregation via `OrionHealthMonitor`
+- Service registration and resolution via `FridayServiceContainer`
+- Module lifecycle tracking via `FridayModuleRegistry`
+- Capability indexing via `FridayCapabilityRegistry`
+- Health check aggregation via `FridayHealthMonitor`
 - Event dispatch to `EventBus`
 
 ### 2. EventBus (`app/events/bus.py`)
@@ -137,7 +137,7 @@ Priority-ordered publish/subscribe event system supporting wildcard patterns, mi
 - `AgentTaskCompleted`, `AgentTaskFailed`, `AgentTaskDelegated` — agent task lifecycle
 - `KernelBooting`, `KernelReady`, `KernelShutdown` — kernel lifecycle
 
-### 3. OrionOrchestrator (`app/orion/orchestrator.py`)
+### 3. FridayOrchestrator (`app/friday/orchestrator.py`)
 
 Per-request coordinator that wires intent classification → planning → execution → LLM response → memory persistence.
 
@@ -150,7 +150,7 @@ Per-request coordinator that wires intent classification → planning → execut
 6. Save session to `MemoryEngine`
 7. Publish `ConversationCompleted` event
 
-### 4. Planner (`app/orion/planner.py` / `app/orion/planner_engine.py`)
+### 4. Planner (`app/friday/planner.py` / `app/friday/planner_engine.py`)
 
 Generates `ExecutionPlan` with typed steps (tool, llm, knowledge, condition, delay, mission, notification, agent_task). The `PlannerEngine` is the lifecycle-managed version with `initialize()`/`start()`/`shutdown()`.
 
@@ -166,7 +166,7 @@ Executes plans as `RuntimeWorkflow` instances with topological step ordering, pa
 - `RuntimeSchedulerBridge` — orchestration layer bridge (submit_plan → manager)
 - `WorkflowWorkerAgent` — handles 8 step types (tool, llm, knowledge, condition, delay, mission, notification, agent_task)
 
-### 6. Tool Engine (`app/orion/tool_engine.py` + `app/tools/`)
+### 6. Tool Engine (`app/friday/tool_engine.py` + `app/tools/`)
 
 Complete tool execution pipeline:
 1. Capability lookup (`CapabilityRegistry`)
@@ -200,7 +200,7 @@ Session/user/project memory with two backends:
 
 `MemoryEngine` is lifecycle-managed (`initialize()`→`start()`→`shutdown()`). `MemoryManager` provides CRUD operations for session, user, and project memory layers. Publisher of `MemoryUpdated` event.
 
-### 8. Knowledge Engine (`app/orion/knowledge_engine.py`)
+### 8. Knowledge Engine (`app/friday/knowledge_engine.py`)
 
 Full knowledge pipeline:
 1. `DocumentParser` — parses JSON, PDF, TXT, MD, code
@@ -225,7 +225,7 @@ Agent delegation system with:
 
 Provider-agnostic router. Registers providers and routes prompts by name. Default provider is Gemini (`GeminiAdapter`).
 
-### 11. OrionServiceContainer (`app/kernel/container.py`)
+### 11. FridayServiceContainer (`app/kernel/container.py`)
 
 DI container supporting three scopes:
 - `singleton` — always returns same instance
@@ -264,13 +264,13 @@ Single-page application with:
 ## Dependency Graph
 
 ```
-OrionKernel
+FridayKernel
     ├── BootManager
-    │   └── OrionServiceContainer (DI)
-    ├── OrionModuleRegistry
-    ├── OrionCapabilityRegistry
-    ├── OrionLifecycleManager
-    └── OrionHealthMonitor
+    │   └── FridayServiceContainer (DI)
+    ├── FridayModuleRegistry
+    ├── FridayCapabilityRegistry
+    ├── FridayLifecycleManager
+    └── FridayHealthMonitor
 
 Service Registration Order (boot.py):
     event_bus ──────────────────────┐
@@ -300,7 +300,7 @@ Service Registration Order (boot.py):
                                             └── runtime_scheduler_bridge
 
 Runtime Dependencies (request flow):
-    OrionOrchestrator
+    FridayOrchestrator
         ├── LLMRouter (kernel.get_service)
         ├── MemoryEngine (kernel.get_service)
         ├── RuntimeSchedulerBridge (kernel.get_service)
@@ -426,8 +426,8 @@ if step.type == "my_new_type":
 
 | Endpoint | Method | Handler | Description |
 |----------|--------|---------|-------------|
-| `/ask` | POST | `OrionOrchestrator.process_query()` | Non-streaming query |
-| `/ask/stream` | POST | `OrionOrchestrator.process_stream()` | Streaming query (SSE) |
+| `/ask` | POST | `FridayOrchestrator.process_query()` | Non-streaming query |
+| `/ask/stream` | POST | `FridayOrchestrator.process_stream()` | Streaming query (SSE) |
 | `/health` | GET | Kernel health check | All subsystem health |
 | `/missions` | CRUD | `MissionManager` | Mission lifecycle |
 | `/workflows` | CRUD | Legacy `WorkflowEngine` | Legacy workflow CRUD |
@@ -439,26 +439,26 @@ if step.type == "my_new_type":
 
 | Class | Module | Role |
 |-------|--------|------|
-| `OrionKernel` | `app.kernel.kernel` | Singleton system kernel |
-| `OrionServiceContainer` | `app.kernel.container` | DI container |
+| `FridayKernel` | `app.kernel.kernel` | Singleton system kernel |
+| `FridayServiceContainer` | `app.kernel.container` | DI container |
 | `EventBus` | `app.events.bus` | Pub/sub event system |
-| `OrionOrchestrator` | `app.orion.orchestrator` | Request orchestrator |
+| `FridayOrchestrator` | `app.friday.orchestrator` | Request orchestrator |
 | `BaseTool` | `app.tools.base_tool` | Tool interface |
 | `BaseAgent` | `app.agents.base` | Agent interface |
-| `ToolRegistry` | `app.orion.tool_registry` | Tool registration |
+| `ToolRegistry` | `app.friday.tool_registry` | Tool registration |
 | `AgentRegistry` | `app.agents.registry` | Agent registration |
 | `LLMRouter` | `app.llm.router` | LLM provider routing |
 | `MemoryEngine` | `app.memory.engine` | Memory persistence |
-| `KnowledgeEngine` | `app.orion.knowledge_engine` | Knowledge retrieval |
+| `KnowledgeEngine` | `app.friday.knowledge_engine` | Knowledge retrieval |
 | `WorkflowRuntimeManager` | `app.workflow_runtime.manager` | Workflow execution |
-| `Planner` | `app.orion.planner` | Plan generation |
+| `Planner` | `app.friday.planner` | Plan generation |
 
 ### Key Events (EventBus Topics)
 
 | Event Class | Topic | Published By |
 |-------------|-------|-------------|
-| `ConversationReceived` | `conversation.received` | `OrionOrchestrator` |
-| `ConversationCompleted` | `conversation.completed` | `OrionOrchestrator` |
+| `ConversationReceived` | `conversation.received` | `FridayOrchestrator` |
+| `ConversationCompleted` | `conversation.completed` | `FridayOrchestrator` |
 | `ToolCompleted` | `tool.completed` | `ToolEngine` |
 | `MemoryUpdated` | `memory.updated` | `MemoryManager` |
 | `WorkflowStarted` | `workflow.started` | `WorkflowRuntimeManager` |
@@ -470,16 +470,16 @@ if step.type == "my_new_type":
 | `AgentTaskCompleted` | `agent.task.completed` | `AgentCoordinator` |
 | `AgentTaskFailed` | `agent.task.failed` | `AgentCoordinator` |
 | `AgentTaskDelegated` | `agent.task.delegated` | `AgentCoordinator` |
-| `KernelBooting` | `kernel.booting` | `OrionKernel` |
-| `KernelReady` | `kernel.ready` | `OrionKernel` |
-| `KernelShutdown` | `kernel.shutdown` | `OrionKernel` |
+| `KernelBooting` | `kernel.booting` | `FridayKernel` |
+| `KernelReady` | `kernel.ready` | `FridayKernel` |
+| `KernelShutdown` | `kernel.shutdown` | `FridayKernel` |
 
 ---
 
 ## Project Layout
 
 ```
-services/orion-api/
+services/friday-api/
     app/
         kernel/          # Kernel, boot, DI container, lifecycle, module registry
             kernel.py
@@ -495,7 +495,7 @@ services/orion-api/
         events/          # EventBus, event classes
             bus.py
             events.py
-        orion/           # Orchestrator, planner, tool engine, knowledge engine
+        friday/           # Orchestrator, planner, tool engine, knowledge engine
             orchestrator.py
             planner.py
             planner_engine.py

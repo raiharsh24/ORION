@@ -1,5 +1,5 @@
 /**
- * Class representing and managing ORION's system instruction/prompt.
+ * Class representing and managing FRIDAY's system instruction/prompt.
  */
 export class SystemPrompt {
   /**
@@ -9,7 +9,7 @@ export class SystemPrompt {
   constructor(customPrompt = null) {
     this._customPrompt = customPrompt;
     this._defaultPrompt = [
-      "You are ORION, a modular, local-first professional AI assistant inspired by JARVIS/FRIDAY.",
+      "You are FRIDAY, a modular, local-first professional AI assistant inspired by JARVIS/FRIDAY.",
       "Aesthetic Guidelines:",
       "- Be highly professional, technical, helpful, and accurate.",
       "- Be honest: if you do not know something, state it clearly without making assumptions or inventing facts.",
@@ -37,7 +37,7 @@ export class SystemPrompt {
   }
 
   /**
-   * Resets the system instructions back to the default ORION prompt.
+   * Resets the system instructions back to the default FRIDAY prompt.
    */
   reset() {
     this._customPrompt = null;

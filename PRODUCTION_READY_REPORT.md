@@ -1,4 +1,4 @@
-# ORION Production Readiness Report
+# FRIDAY Production Readiness Report
 
 **Date:** 2026-06-28
 **Scope:** Full-stack validation — Desktop UI → Express Gateway → Python API / Node.js Engine
@@ -12,19 +12,19 @@
 
 | File | Change |
 |------|--------|
-| `services/orion-api/app/main.py:88-89` | Added `app.include_router(api_router, prefix="/api")` so all routes are reachable at both root (`/ask`) and `/api` prefix (`/api/ask`) |
+| `services/friday-api/app/main.py:88-89` | Added `app.include_router(api_router, prefix="/api")` so all routes are reachable at both root (`/ask`) and `/api` prefix (`/api/ask`) |
 
 ### Fix 2: Restore Event Publishing for Feedback Loops
 
 | File | Change |
 |------|--------|
-| `services/orion-api/app/memory/manager.py:62` | `save_session()` now publishes `MemoryUpdated` event after every session write |
-| `services/orion-api/app/orion/tool_engine.py:222,252` | `execute_tool()` now publishes `ToolCompleted` event (via `finally` block) alongside existing `ToolExecuted`/`ToolFailed` |
-| `services/orion-api/app/orion/orchestrator.py:104-110` | `process_query()` publishes `ConversationReceived` at start of request |
-| `services/orion-api/app/orion/orchestrator.py:248-252` | `process_query()` publishes `ConversationCompleted` after memory is updated |
-| `services/orion-api/app/orion/orchestrator.py:277-281` | `process_stream()` publishes `ConversationReceived` at start of request |
-| `services/orion-api/app/orion/orchestrator.py:350-354` | `process_stream()` publishes `ConversationCompleted` after memory is updated |
-| `services/orion-api/app/api/routes.py:20,36` | `get_orchestrator()` now passes `event_bus` from kernel to `OrionOrchestrator` |
+| `services/friday-api/app/memory/manager.py:62` | `save_session()` now publishes `MemoryUpdated` event after every session write |
+| `services/friday-api/app/friday/tool_engine.py:222,252` | `execute_tool()` now publishes `ToolCompleted` event (via `finally` block) alongside existing `ToolExecuted`/`ToolFailed` |
+| `services/friday-api/app/friday/orchestrator.py:104-110` | `process_query()` publishes `ConversationReceived` at start of request |
+| `services/friday-api/app/friday/orchestrator.py:248-252` | `process_query()` publishes `ConversationCompleted` after memory is updated |
+| `services/friday-api/app/friday/orchestrator.py:277-281` | `process_stream()` publishes `ConversationReceived` at start of request |
+| `services/friday-api/app/friday/orchestrator.py:350-354` | `process_stream()` publishes `ConversationCompleted` after memory is updated |
+| `services/friday-api/app/api/routes.py:20,36` | `get_orchestrator()` now passes `event_bus` from kernel to `FridayOrchestrator` |
 
 ### Fix 3: Desktop Cancellation End-to-End
 
@@ -98,7 +98,7 @@ No Critical or High issues remain from the original SYSTEM_VALIDATION_REPORT.md.
 
 **Reasoning:**
 
-ORION now meets the criteria for Production Ready:
+FRIDAY now meets the criteria for Production Ready:
 
 1. **All subsystems reachable and functional** — Every subsystem is wired, instantiated, and tested. The Python API routes work at both root and `/api` prefix, ensuring Gateway proxy compatibility. SSE `/events` and WebSocket `/ws` endpoints are proxied through the Gateway.
 
