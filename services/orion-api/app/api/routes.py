@@ -17,6 +17,7 @@ async def get_orchestrator() -> OrionOrchestrator:
         
     llm_router = kernel.get_service("llm_router")
     memory = kernel.get_service("memory_engine")
+    runtime_bridge = kernel.get_service("runtime_scheduler_bridge")
     
     intent_classifier = IntentClassifier()
     prompt_manager = PromptManager()
@@ -28,7 +29,8 @@ async def get_orchestrator() -> OrionOrchestrator:
         memory=memory,
         prompt_manager=prompt_manager,
         tool_registry=tool_registry,
-        embeddings=embeddings
+        embeddings=embeddings,
+        runtime_bridge=runtime_bridge,
     )
 
 @router.post("/ask", response_model=AskResponse)

@@ -334,13 +334,28 @@ class ToolEngine:
 
     # EventBus callbacks
     def on_plan_validated(self, event: OrionEvent) -> None:
-        logger.info("ToolEngine intercepted PlanValidated event.")
+        plan_data = event.data if hasattr(event, "data") else {}
+        tool_name = plan_data.get("tool_name") or plan_data.get("tool") or ""
+        steps = plan_data.get("steps") or []
+        logger.info(f"ToolEngine: PlanValidated for tool='{tool_name}' with {len(steps)} steps")
+        if tool_name and self._manager:
+            cap = self.capability_registry.get_capability(tool_name)
+            if not cap:
+                logger.debug(f"ToolEngine: capability '{tool_name}' not yet registered, preparing for lazy registration")
 
     def on_mission_started(self, event: OrionEvent) -> None:
-        logger.info("ToolEngine intercepted MissionStarted event.")
+        data = event.data if hasattr(event, "data") else {}
+        mission_id = data.get("mission_id") or data.get("id", "")
+        logger.info(f"ToolEngine: MissionStarted '{mission_id}', activating tool context")
 
     def on_workflow_started(self, event: OrionEvent) -> None:
-        logger.info("ToolEngine intercepted WorkflowStarted event.")
+        data = event.data if hasattr(event, "data") else {}
+        workflow_id = data.get("workflow_id", "")
+        step_count = data.get("steps", data.get("step_count", 0))
+        logger.info(f"ToolEngine: WorkflowStarted '{workflow_id}' ({step_count} steps), preparing tool environment")
 
     def on_memory_updated(self, event: OrionEvent) -> None:
-        logger.info("ToolEngine intercepted MemoryUpdated event.")
+        data = event.data if hasattr(event, "data") else {}
+        layer = data.get("layer", "")
+        key = data.get("key", "")
+        logger.info(f"ToolEngine: MemoryUpdated layer='{layer}' key='{key}', refreshing tool context")

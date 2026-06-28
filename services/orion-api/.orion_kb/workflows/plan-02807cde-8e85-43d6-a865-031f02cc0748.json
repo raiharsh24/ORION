@@ -1,0 +1,81 @@
+{
+  "workflow_id": "plan-02807cde-8e85-43d6-a865-031f02cc0748",
+  "name": "Execute file system operations for: 'write file '/tmp/tmpw1aydme9' with 'new con",
+  "description": "",
+  "steps": {
+    "step_0": {
+      "step_id": "step_0",
+      "name": "Step 0",
+      "step_type": "tool",
+      "input": {},
+      "depends_on": [],
+      "retry_policy": {
+        "max_retries": 0,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "backoff_factor": 2.0,
+        "retryable_errors": []
+      },
+      "timeout": null,
+      "status": "FAILED",
+      "result": null,
+      "error": "Delegation failed for task wf-plan-02807cde-8e85-43d6-a865-031f02cc0748-step_0: SharedContext unavailable for tool ''",
+      "started_at": "2026-06-28T08:54:40.971415Z",
+      "completed_at": "2026-06-28T08:54:47.977210Z",
+      "retry_count": 0,
+      "parallel_group": null
+    }
+  },
+  "status": "FAILED",
+  "created_at": "2026-06-28T08:54:40.967365Z",
+  "updated_at": "2026-06-28T08:54:47.977465Z",
+  "started_at": "2026-06-28T08:54:40.969797Z",
+  "completed_at": null,
+  "variables": {
+    "intent": "Filesystem Action",
+    "priority": "medium",
+    "confidence": 0.95
+  },
+  "schedule": null,
+  "error": "Step(s) failed after max retries: Step 0",
+  "metadata": {
+    "capabilities": [
+      "Desktop"
+    ],
+    "memory_required": false,
+    "tool_required": true,
+    "clarification_required": false,
+    "tool_name": "filesystem",
+    "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpw1aydme9' with 'new content''"
+  },
+  "source_plan": {
+    "plan_id": "02807cde-8e85-43d6-a865-031f02cc0748",
+    "goal": "Execute file system operations for: 'write file '/tmp/tmpw1aydme9' with 'new content''",
+    "steps": [
+      {
+        "step": 1,
+        "action": "filesystem_op",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmpw1aydme9",
+          "content": "new content"
+        }
+      }
+    ],
+    "variables": {
+      "intent": "Filesystem Action",
+      "priority": "medium",
+      "confidence": 0.95
+    },
+    "metadata": {
+      "capabilities": [
+        "Desktop"
+      ],
+      "memory_required": false,
+      "tool_required": true,
+      "clarification_required": false,
+      "tool_name": "filesystem",
+      "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpw1aydme9' with 'new content''"
+    }
+  }
+}

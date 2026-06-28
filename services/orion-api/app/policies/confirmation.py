@@ -1,28 +1,29 @@
-from typing import Dict, Any
+from typing import Dict, Any, Set
+
+DESTRUCTIVE_ACTIONS: Set[str] = {
+    "delete", "rm", "remove", "destroy", "wipe", "format",
+    "overwrite", "write", "mv", "move", "rename",
+    "shutdown", "reboot", "restart",
+    "install", "uninstall",
+}
+
 
 class ConfirmationPolicy:
     """
     Manages interactive validation loops for destructive tasks.
-
-    TODO:
-    - Assess destructive command risks
-    - Track confirmation token mappings
-    - Define bypass rules based on user permissions
     """
     def __init__(self) -> None:
-        """Initialize the ConfirmationPolicy."""
-        pass
+        self._destructive_actions = DESTRUCTIVE_ACTIONS
 
     async def requires_confirmation(self, action: str, args: Dict[str, Any]) -> bool:
-        """
-        Determines if a task requires explicit confirmation.
-
-        Args:
-            action (str): Identifier of the target tool.
-            args (Dict[str, Any]): arguments list.
-
-        Returns:
-            bool: True if confirmation is required.
-        """
-        # TODO: Implement confirmation checking rules
+        action_lower = action.lower()
+        if action_lower in self._destructive_actions:
+            return True
+        op = str(args.get("op", args.get("operation", ""))).lower()
+        if op in self._destructive_actions:
+            return True
+        cmd = str(args.get("cmd", args.get("command", ""))).lower()
+        for keyword in self._destructive_actions:
+            if keyword in cmd:
+                return True
         return False

@@ -26,6 +26,20 @@ class RuntimeSchedulerBridge:
         wf = await self._manager.start_from_workflow(workflow)
         return wf.workflow_id
 
+    async def submit_and_wait(self, plan: ExecutionPlanInput) -> RuntimeWorkflow:
+        logger.info(f"Submitting plan '{plan.plan_id}' and awaiting completion")
+        workflow = await self._manager.start_from_plan(plan)
+        task = self._manager._active_runs.get(workflow.workflow_id)
+        if task:
+            try:
+                await task
+            except Exception:
+                pass
+        completed = self._manager.get(workflow.workflow_id)
+        if not completed:
+            completed = await self._manager.get_stored(workflow.workflow_id)
+        return completed or workflow
+
     async def schedule_plan(
         self,
         plan: ExecutionPlanInput,

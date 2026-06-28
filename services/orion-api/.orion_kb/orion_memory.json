@@ -5,18 +5,62 @@
       {
         "role": "user",
         "content": "Compatible query",
-        "timestamp": 1782633980.5597403
+        "timestamp": 1782637061.3948631
       },
       {
         "role": "assistant",
         "content": "Compatible response",
-        "timestamp": 1782633980.5601869
+        "timestamp": 1782637061.3954806
       }
     ],
     "summary": "custom summary",
-    "created_at": 1782633980.5546138,
-    "updated_at": 1782633980.560997,
+    "created_at": 1782637061.3928578,
+    "updated_at": 1782637061.3962405,
     "context": "active-flow",
+    "tool_used": null,
+    "tool_output": null,
+    "metadata": {}
+  },
+  "session:837dfa0b-f443-419a-9c2b-b902dba88d5b": {
+    "session_id": "837dfa0b-f443-419a-9c2b-b902dba88d5b",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello ORION",
+        "timestamp": 1782637061.803284
+      },
+      {
+        "role": "assistant",
+        "content": "Mocked Gemini Response text.",
+        "timestamp": 1782637061.804399
+      }
+    ],
+    "summary": "Conversation session initialized.",
+    "created_at": 1782637061.801615,
+    "updated_at": 1782637061.8052545,
+    "context": "Intent: CHAT",
+    "tool_used": null,
+    "tool_output": null,
+    "metadata": {}
+  },
+  "session:f07f3d60-d14d-4b48-8b58-31550f8a3fb6": {
+    "session_id": "f07f3d60-d14d-4b48-8b58-31550f8a3fb6",
+    "messages": [
+      {
+        "role": "user",
+        "content": "stream test",
+        "timestamp": 1782637071.1405895
+      },
+      {
+        "role": "assistant",
+        "content": "Hello world",
+        "timestamp": 1782637071.144105
+      }
+    ],
+    "summary": "Conversation session initialized.",
+    "created_at": 1782637071.1397731,
+    "updated_at": 1782637071.1446886,
+    "context": "Intent: CHAT (streamed)",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
