@@ -62,3 +62,21 @@ async def test_scheduler_health():
     assert health["status"] == "HEALTHY"
     assert health["details"]["scheduled_jobs"] == 0
     await scheduler.shutdown()
+
+
+@pytest.mark.anyio
+async def test_scheduler_shutdown_cleans_up_tick_loop():
+    """Regression test: start() creates a _tick_loop task, shutdown() must
+    cancel it so it does not leak."""
+    bus = EventBus()
+    scheduler = AgentScheduler(event_bus=bus)
+    await scheduler.start()
+
+    assert scheduler._loop_task is not None
+    assert not scheduler._loop_task.done()
+
+    await scheduler.shutdown()
+
+    assert scheduler._loop_task.done()
+    assert not scheduler._running
+    assert len(scheduler._background_tasks) == 0

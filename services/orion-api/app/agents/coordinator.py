@@ -55,7 +55,7 @@ class AgentCoordinator:
             logger.warning(f"No agents available for task type '{task.type}'")
             task.status = "FAILED"
             task.error = f"No agent found with capability '{task.type}'"
-            self._publish_event(AgentTaskFailed(task.task_id, "", task.error))
+            self._event_bus and self._event_bus.publish_background(AgentTaskFailed(task.task_id, "", task.error))
             return None
 
         idle = [a for a in candidates if a.status == AgentStatus.IDLE]
@@ -73,7 +73,7 @@ class AgentCoordinator:
             trace_id=task.trace_id
         )
         self._pending_tasks[task.task_id] = task
-        self._publish_event(AgentTaskCreated(task.task_id, task.type, chosen.agent_id))
+        self._event_bus and self._event_bus.publish_background(AgentTaskCreated(task.task_id, task.type, chosen.agent_id))
         logger.info(f"Routed task {task.task_id} ({task.type}) to agent '{chosen.name}'")
         return chosen.agent_id
 
@@ -106,7 +106,7 @@ class AgentCoordinator:
                 if span_id:
                     self._telemetry.end_trace(span_id, status="OK")
                 self._telemetry.record_task_metrics(task, duration_ms, success=True)
-                self._publish_event(AgentTaskCompleted(task.task_id, agent_id, success=True))
+                self._event_bus and self._event_bus.publish_background(AgentTaskCompleted(task.task_id, agent_id, success=True))
                 return result
             except asyncio.TimeoutError:
                 duration_ms = (time.time() - start) * 1000
@@ -184,13 +184,13 @@ class AgentCoordinator:
                 agent = self._registry.get(task.agent_id)
                 if agent:
                     await agent.cancel_task()
-            self._publish_event(AgentTaskCancelled(task_id, task.agent_id or ""))
+            self._event_bus and self._event_bus.publish_background(AgentTaskCancelled(task_id, task.agent_id or ""))
             return True
 
         for agent in self._registry.discover():
             if agent._current_task and agent._current_task.task_id == task_id:
                 await agent.cancel_task()
-                self._publish_event(AgentTaskCancelled(task_id, agent.agent_id))
+                self._event_bus and self._event_bus.publish_background(AgentTaskCancelled(task_id, agent.agent_id))
                 return True
 
         return False
@@ -204,6 +204,33 @@ class AgentCoordinator:
     def get_circuit_breaker(self, name: str) -> Optional[CircuitBreaker]:
         return self._circuit_breakers.get(name)
 
+    async def shutdown(self) -> None:
+        """Graceful shutdown of all agent runtime resources."""
+        logger.info("AgentCoordinator shutting down...")
+
+        # Cancel all pending tasks
+        for task_id in list(self._pending_tasks.keys()):
+            await self.cancel_task(task_id)
+        self._pending_tasks.clear()
+
+        # Cancel all active delegations
+        for agent_id, delegation in list(self._active_delegations.items()):
+            delegation.cancel()
+        self._active_delegations.clear()
+
+        # Reset all circuit breakers
+        for cb in self._circuit_breakers.values():
+            cb.reset()
+        self._circuit_breakers.clear()
+
+        # Drain dead letter queue
+        self._dead_letter_queue.clear()
+
+        # Shutdown the agent scheduler
+        await self._scheduler.shutdown()
+
+        logger.info("AgentCoordinator shut down successfully.")
+
     def health(self) -> Dict[str, Any]:
         return {
             "status": "HEALTHY",
@@ -216,18 +243,4 @@ class AgentCoordinator:
             }
         }
 
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import inspect
-        try:
-            if inspect.iscoroutinefunction(self._event_bus.publish):
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
-                except RuntimeError:
-                    asyncio.run(self._event_bus.publish(event))
-            else:
-                self._event_bus.publish(event)
-        except Exception as e:
-            logger.error(f"AgentCoordinator event publish failed: {e}")
+

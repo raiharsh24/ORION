@@ -78,6 +78,95 @@ class ToolExecutor:
 
         # Fallback to local direct execution (e.g. unbooted unit tests)
         logger.warning("ToolEngine not registered in container. Running local execution fallback.")
+
+        return await self._fallback_execute(tool_name, args, confirmed, confirmation_token)
+
+    async def check_confirmation(
+        self,
+        plan: Any
+    ) -> Optional[ToolExecutionResult]:
+        """
+        Lightweight confirmation check that does NOT execute the tool.
+        Returns a ToolExecutionResult with confirmation_required=True if confirmation is needed, or None.
+        Uses the ToolEngine's PermissionManager when kernel is available, otherwise the fallback path.
+        """
+        tool_name = getattr(plan, "tool_name", None) or getattr(plan, "tool", None)
+        args = getattr(plan, "args", {})
+
+        from app.kernel.kernel import OrionKernel
+        kernel = OrionKernel.get_instance()
+        tool_engine = kernel.get_service("tool_engine")
+
+        if tool_engine and getattr(tool_engine, "_manager", None):
+            cap = tool_engine._manager.capability_registry.get_capability(tool_name)
+            if not cap:
+                return None
+            requires_conf = tool_engine._manager.permission_manager.requires_confirmation(cap, args)
+            if not requires_conf:
+                return None
+            token = tool_engine._manager.permission_manager.generate_token(tool_name, args)
+            desc = ""
+            if tool_name == "filesystem":
+                op = args.get("op")
+                path = args.get("path")
+                if op == "delete":
+                    desc = f"Are you sure you want to delete the file/directory at '{path}'?"
+                elif op == "write":
+                    desc = f"Are you sure you want to overwrite the file at '{path}'?"
+            elif tool_name == "terminal":
+                cmd = args.get("cmd")
+                desc = f"Are you sure you want to execute this dangerous command in the terminal?\nCommand: '{cmd}'"
+            if not desc:
+                desc = f"Execution of tool '{tool_name}' requires user confirmation."
+            return ToolExecutionResult(
+                success=False, tool=tool_name, output=desc,
+                confirmation_required=True, confirmation_token=token
+            )
+
+        # Fallback: check using tool-level requires_confirmation
+        from app.orion.tool_permission import PermissionManager
+        pm = PermissionManager()
+        tool = self.tool_registry.get(tool_name)
+        if not tool:
+            return None
+
+        requires_conf = False
+        if hasattr(tool, "requires_confirmation"):
+            try:
+                requires_conf = tool.requires_confirmation(**args)
+            except PermissionError:
+                requires_conf = True
+
+        if not requires_conf:
+            return None
+
+        token = pm.generate_token(tool_name, args)
+        desc = ""
+        if tool_name == "filesystem":
+            op = args.get("op")
+            path = args.get("path")
+            if op == "delete":
+                desc = f"Are you sure you want to delete the file/directory at '{path}'?"
+            elif op == "write":
+                desc = f"Are you sure you want to overwrite the file at '{path}'?"
+        elif tool_name == "terminal":
+            cmd = args.get("cmd")
+            desc = f"Are you sure you want to execute this dangerous command in the terminal?\nCommand: '{cmd}'"
+        if not desc:
+            desc = f"Execution of tool '{tool_name}' requires user confirmation."
+        return ToolExecutionResult(
+            success=False, tool=tool_name, output=desc,
+            confirmation_required=True, confirmation_token=token
+        )
+
+    async def _fallback_execute(
+        self,
+        tool_name: str,
+        args: Dict[str, Any],
+        confirmed: bool = False,
+        confirmation_token: Optional[str] = None
+    ) -> ToolExecutionResult:
+        """Fallback execution path when ToolEngine kernel service is not available."""
         from app.orion.tool_permission import PermissionManager
         pm = PermissionManager()
 
@@ -90,7 +179,10 @@ class ToolExecutor:
 
         requires_conf = False
         if hasattr(tool, "requires_confirmation"):
-            requires_conf = tool.requires_confirmation(**args)
+            try:
+                requires_conf = tool.requires_confirmation(**args)
+            except PermissionError:
+                requires_conf = True
 
         if requires_conf:
             if not confirmed:
@@ -106,7 +198,7 @@ class ToolExecutor:
                 elif tool_name == "terminal":
                     cmd = args.get("cmd")
                     desc = f"Are you sure you want to execute this dangerous command in the terminal?\nCommand: '{cmd}'"
-                
+
                 if not desc:
                     desc = f"Execution of tool '{tool_name}' requires user confirmation."
                 return ToolExecutionResult(

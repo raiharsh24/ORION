@@ -64,6 +64,8 @@ app.use(['/telemetry', '/api/telemetry'], pythonProxy());
 app.use(['/workflows', '/api/workflows'], pythonProxy());
 app.use(['/workspace', '/api/workspace'], pythonProxy());
 app.use(['/knowledge', '/api/knowledge'], pythonProxy());
+app.use(['/events', '/api/events'], pythonProxy());
+app.use(['/ws', '/api/ws'], pythonProxy());
 
 // ---------------- API Endpoints ----------------
 

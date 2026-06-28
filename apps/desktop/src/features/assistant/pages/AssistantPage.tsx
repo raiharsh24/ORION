@@ -30,6 +30,7 @@ export const AssistantPage: React.FC = () => {
     sendMessageStream,
     confirmPendingAction,
     cancelPendingAction,
+    cancelCurrentRequest,
     createNewSession
   } = useSystemStore();
 
@@ -291,6 +292,15 @@ export const AssistantPage: React.FC = () => {
               >
                 <Send className="w-4 h-4" />
               </Button>
+              {streamingMessage !== null && (
+                <Button 
+                  type="button"
+                  className="h-[42px] px-4 bg-red-600 hover:bg-red-700 text-white"
+                  onClick={cancelCurrentRequest}
+                >
+                  Stop
+                </Button>
+              )}
             </div>
           </form>
 

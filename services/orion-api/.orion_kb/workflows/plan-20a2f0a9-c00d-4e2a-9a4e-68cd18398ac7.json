@@ -1,0 +1,88 @@
+{
+  "workflow_id": "plan-20a2f0a9-c00d-4e2a-9a4e-68cd18398ac7",
+  "name": "Execute file system operations for: 'write file '/tmp/tmpe73rb6tc.txt' with 'new",
+  "description": "",
+  "steps": {
+    "step_0": {
+      "step_id": "step_0",
+      "name": "Step 0",
+      "step_type": "tool",
+      "input": {},
+      "depends_on": [],
+      "retry_policy": {
+        "max_retries": 0,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "backoff_factor": 2.0,
+        "retryable_errors": []
+      },
+      "timeout": null,
+      "status": "COMPLETED",
+      "result": {
+        "result": null,
+        "tool": ""
+      },
+      "error": null,
+      "started_at": "2026-06-28T10:38:09.399959Z",
+      "completed_at": "2026-06-28T10:38:09.400576Z",
+      "retry_count": 0,
+      "parallel_group": null
+    }
+  },
+  "status": "COMPLETED",
+  "created_at": "2026-06-28T10:38:09.397634Z",
+  "updated_at": "2026-06-28T10:38:09.405144Z",
+  "started_at": "2026-06-28T10:38:09.399096Z",
+  "completed_at": "2026-06-28T10:38:09.405126Z",
+  "variables": {
+    "intent": "Filesystem Action",
+    "priority": "medium",
+    "confidence": 0.95,
+    "step_0.output": {
+      "result": null,
+      "tool": ""
+    }
+  },
+  "schedule": null,
+  "error": null,
+  "metadata": {
+    "capabilities": [
+      "Desktop"
+    ],
+    "memory_required": false,
+    "tool_required": true,
+    "clarification_required": false,
+    "tool_name": "filesystem",
+    "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpe73rb6tc.txt' with 'new content''"
+  },
+  "source_plan": {
+    "plan_id": "20a2f0a9-c00d-4e2a-9a4e-68cd18398ac7",
+    "goal": "Execute file system operations for: 'write file '/tmp/tmpe73rb6tc.txt' with 'new content''",
+    "steps": [
+      {
+        "step": 1,
+        "action": "filesystem_op",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmpe73rb6tc.txt",
+          "content": "new content"
+        }
+      }
+    ],
+    "variables": {
+      "intent": "Filesystem Action",
+      "priority": "medium",
+      "confidence": 0.95
+    },
+    "metadata": {
+      "capabilities": [
+        "Desktop"
+      ],
+      "memory_required": false,
+      "tool_required": true,
+      "clarification_required": false,
+      "tool_name": "filesystem",
+      "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpe73rb6tc.txt' with 'new content''"
+    }
+  }
+}

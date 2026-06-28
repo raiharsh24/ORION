@@ -55,7 +55,7 @@ class WorkflowRuntimeManager:
         task = asyncio.create_task(self._run_workflow(workflow_id))
         self._active_runs[workflow_id] = task
 
-        self._publish_event(WorkflowStarted(
+        self._event_bus and self._event_bus.publish_background(WorkflowStarted(
             workflow_id, workflow.name, len(workflow.steps)
         ))
         logger.info(f"Workflow '{workflow.name}' ({workflow_id}) started with {len(workflow.steps)} steps")
@@ -114,14 +114,14 @@ class WorkflowRuntimeManager:
             logger.info(f"Workflow '{workflow_id}' execution cancelled")
             workflow.status = RuntimeWorkflowStatus.CANCELLED
             await self._persistence.save(workflow)
-            self._publish_event(WorkflowCancelled(workflow_id))
+            self._event_bus and self._event_bus.publish_background(WorkflowCancelled(workflow_id))
         except Exception as e:
             error = str(e)
             logger.error(f"Workflow '{workflow_id}' runtime error: {error}")
             workflow.status = RuntimeWorkflowStatus.FAILED
             workflow.error = error
             await self._persistence.save(workflow)
-            self._publish_event(WorkflowFailed(workflow_id, error))
+            self._event_bus and self._event_bus.publish_background(WorkflowFailed(workflow_id, error))
         finally:
             self._active_runs.pop(workflow_id, None)
             self._start_times.pop(workflow_id, None)
@@ -134,10 +134,10 @@ class WorkflowRuntimeManager:
         if failed:
             workflow.status = RuntimeWorkflowStatus.FAILED
             workflow.error = f"{len(failed)} step(s) failed"
-            self._publish_event(WorkflowFailed(workflow.workflow_id, workflow.error))
+            self._event_bus and self._event_bus.publish_background(WorkflowFailed(workflow.workflow_id, workflow.error))
         else:
             workflow.status = RuntimeWorkflowStatus.COMPLETED
-            self._publish_event(WorkflowCompleted(
+            self._event_bus and self._event_bus.publish_background(WorkflowCompleted(
                 workflow.workflow_id,
                 len(workflow.steps),
                 len(failed)
@@ -160,7 +160,7 @@ class WorkflowRuntimeManager:
         if not all_failed_recoverable and failed_steps:
             workflow.status = RuntimeWorkflowStatus.FAILED
             workflow.error = f"Step(s) failed after max retries: {', '.join(s.name for s in failed_steps)}"
-            self._publish_event(WorkflowFailed(workflow.workflow_id, workflow.error))
+            self._event_bus and self._event_bus.publish_background(WorkflowFailed(workflow.workflow_id, workflow.error))
             return True
         return False
 
@@ -170,7 +170,7 @@ class WorkflowRuntimeManager:
             return False
         workflow.status = RuntimeWorkflowStatus.PAUSED
         await self._persistence.save(workflow)
-        self._publish_event(WorkflowPaused(workflow_id))
+        self._event_bus and self._event_bus.publish_background(WorkflowPaused(workflow_id))
         logger.info(f"Workflow '{workflow_id}' paused")
         return True
 
@@ -186,7 +186,7 @@ class WorkflowRuntimeManager:
 
         workflow.status = RuntimeWorkflowStatus.RUNNING
         await self._persistence.save(workflow)
-        self._publish_event(WorkflowResumed(workflow_id))
+        self._event_bus and self._event_bus.publish_background(WorkflowResumed(workflow_id))
         logger.info(f"Workflow '{workflow_id}' resumed")
 
         if workflow_id not in self._active_runs or self._active_runs[workflow_id].done():
@@ -209,7 +209,7 @@ class WorkflowRuntimeManager:
         if workflow:
             workflow.status = RuntimeWorkflowStatus.CANCELLED
             await self._persistence.save(workflow)
-            self._publish_event(WorkflowCancelled(workflow_id))
+            self._event_bus and self._event_bus.publish_background(WorkflowCancelled(workflow_id))
             logger.info(f"Workflow '{workflow_id}' cancelled")
             return True
         return False
@@ -303,14 +303,4 @@ class WorkflowRuntimeManager:
             }
         }
 
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import asyncio
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._event_bus.publish(event))
-        except RuntimeError:
-            asyncio.run(self._event_bus.publish(event))
-        except Exception as e:
-            logger.error(f"Manager event publish failed: {e}")
+

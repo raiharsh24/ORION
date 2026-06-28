@@ -23,7 +23,7 @@ class AgentMessageBus:
         logger.debug(f"AgentMessageBus: sending msg {message.message_id} "
                       f"from {message.sender} to {message.recipient or '*'}")
 
-        self._publish_event(AgentMessageSent(
+        self._event_bus and self._event_bus.publish_background(AgentMessageSent(
             message.message_id, message.sender,
             message.recipient or "*", message.type
         ))
@@ -38,8 +38,8 @@ class AgentMessageBus:
                         handler(message)
                 except Exception as e:
                     logger.error(f"Handler for {message.recipient} failed: {e}")
-                    self._publish_event(AgentError(message.sender, str(e)))
-            self._publish_event(AgentMessageReceived(
+                    self._event_bus and self._event_bus.publish_background(AgentError(message.sender, str(e)))
+            self._event_bus and self._event_bus.publish_background(AgentMessageReceived(
                 message.message_id, message.recipient, message.sender, message.type
             ))
         else:
@@ -52,7 +52,7 @@ class AgentMessageBus:
                             handler(message)
                     except Exception as e:
                         logger.error(f"Broadcast handler for {agent_id} failed: {e}")
-            self._publish_event(AgentMessageReceived(
+            self._event_bus and self._event_bus.publish_background(AgentMessageReceived(
                 message.message_id, "*", message.sender, message.type
             ))
 
@@ -115,16 +115,7 @@ class AgentMessageBus:
         if agent_id in self._handlers:
             self._handlers[agent_id] = [h for h in self._handlers[agent_id] if h != handler]
 
-    def _publish_event(self, event: OrionEvent) -> None:
-        if not self._event_bus:
-            return
-        try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self._event_bus.publish(event))
-        except RuntimeError:
-            asyncio.run(self._event_bus.publish(event))
-        except Exception as e:
-            logger.error(f"AgentMessageBus event publish failed: {e}")
+
 
     def health(self) -> Dict[str, Any]:
         return {

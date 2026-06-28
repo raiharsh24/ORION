@@ -23,7 +23,7 @@ class AgentRegistry:
         self._agents[agent.agent_id] = agent
         await agent.start()
 
-        self._publish_event(AgentRegistered(
+        self._event_bus and self._event_bus.publish_background(AgentRegistered(
             agent.agent_id, agent.name, agent.capabilities
         ))
         logger.info(f"AgentRegistry: registered '{agent.name}' ({agent.agent_id}) "
@@ -33,7 +33,7 @@ class AgentRegistry:
         agent = self._agents.pop(agent_id, None)
         if agent:
             await agent.shutdown()
-            self._publish_event(AgentUnregistered(agent_id))
+            self._event_bus and self._event_bus.publish_background(AgentUnregistered(agent_id))
             logger.info(f"AgentRegistry: unregistered '{agent.name}' ({agent_id})")
 
     def get(self, agent_id: str) -> Optional[BaseAgent]:
@@ -78,19 +78,4 @@ class AgentRegistry:
             }
         }
 
-    def _publish_event(self, event: Any) -> None:
-        if not self._event_bus:
-            return
-        import asyncio
-        import inspect
-        try:
-            if inspect.iscoroutinefunction(self._event_bus.publish):
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
-                except RuntimeError:
-                    asyncio.run(self._event_bus.publish(event))
-            else:
-                self._event_bus.publish(event)
-        except Exception as e:
-            logger.error(f"AgentRegistry event publish failed: {e}")
+

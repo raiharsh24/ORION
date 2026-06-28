@@ -29,12 +29,13 @@ class PlannerEngine:
         self._manager = PlannerManager(event_bus=event_bus)
 
         # Register EventBus subscribers
-        if event_bus:
-            event_bus.subscribe("ConversationReceived", self._manager.on_conversation_received)
-            event_bus.subscribe("MemoryRetrieved", self._manager.on_memory_retrieved)
-            event_bus.subscribe("ToolCompleted", self._manager.on_tool_completed)
-            event_bus.subscribe("MissionCompleted", self._manager.on_mission_completed)
-            event_bus.subscribe("WorkflowCompleted", self._manager.on_workflow_completed)
+        self._event_bus = event_bus
+        if self._event_bus:
+            self._event_bus.subscribe("ConversationReceived", self._manager.on_conversation_received)
+            self._event_bus.subscribe("MemoryRetrieved", self._manager.on_memory_retrieved)
+            self._event_bus.subscribe("ToolCompleted", self._manager.on_tool_completed)
+            self._event_bus.subscribe("MissionCompleted", self._manager.on_mission_completed)
+            self._event_bus.subscribe("WorkflowCompleted", self._manager.on_workflow_completed)
             logger.info("PlannerEngine EventBus triggers bound successfully.")
 
         self._initialized = True
@@ -47,6 +48,13 @@ class PlannerEngine:
     async def shutdown(self) -> None:
         """Lifecycle shutdown hook."""
         logger.info("PlannerEngine service shut down.")
+        if self._event_bus and self._manager:
+            self._event_bus.unsubscribe("ConversationReceived", self._manager.on_conversation_received)
+            self._event_bus.unsubscribe("MemoryRetrieved", self._manager.on_memory_retrieved)
+            self._event_bus.unsubscribe("ToolCompleted", self._manager.on_tool_completed)
+            self._event_bus.unsubscribe("MissionCompleted", self._manager.on_mission_completed)
+            self._event_bus.unsubscribe("WorkflowCompleted", self._manager.on_workflow_completed)
+        self._initialized = False
 
     def health(self) -> Dict[str, Any]:
         """Exposes health metrics for the subsystem health monitor."""
