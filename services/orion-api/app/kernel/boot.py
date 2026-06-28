@@ -265,6 +265,67 @@ class BootManager:
             logger.error(f"Failed to initialize Multi-Agent Runtime: {str(e)}")
             raise e
 
+        # Step 12: Initialize Workflow Runtime (Alpha 5.0)
+        logger.info("Boot Step 12: Initialize Workflow Runtime...")
+        try:
+            from app.workflow_runtime.persistence import WorkflowPersistence
+            from app.workflow_runtime.checkpoints import CheckpointManager
+            from app.workflow_runtime.worker_agent import WorkflowWorkerAgent
+            from app.workflow_runtime.executor import WorkflowRuntimeExecutor
+            from app.workflow_runtime.manager import WorkflowRuntimeManager
+            from app.workflow_runtime.scheduler_bridge import RuntimeSchedulerBridge
+
+            persist_dir = getattr(config.paths, "persist_dir", getattr(config.paths, "workspace_root", "./data"))
+            workflow_persistence = WorkflowPersistence(persist_dir=persist_dir)
+            self._container.register_singleton("workflow_persistence", workflow_persistence)
+
+            checkpoint_manager = CheckpointManager(persist_dir=persist_dir)
+            self._container.register_singleton("checkpoint_manager", checkpoint_manager)
+
+            workflow_worker = WorkflowWorkerAgent(
+                agent_id="workflow-worker",
+                name="Workflow Worker",
+                shared_context=shared_context
+            )
+            await agent_registry.register(workflow_worker)
+            self._container.register_singleton("workflow_worker_agent", workflow_worker)
+
+            runtime_executor = WorkflowRuntimeExecutor(
+                agent_coordinator=agent_coordinator,
+                shared_context=shared_context,
+                checkpoint_manager=checkpoint_manager,
+                event_bus=event_bus,
+            )
+            self._container.register_singleton("workflow_runtime_executor", runtime_executor)
+
+            runtime_manager = WorkflowRuntimeManager(
+                persistence=workflow_persistence,
+                executor=runtime_executor,
+                event_bus=event_bus,
+            )
+            self._container.register_singleton("workflow_runtime_manager", runtime_manager)
+
+            scheduler_bridge = RuntimeSchedulerBridge(
+                workflow_manager=runtime_manager,
+                agent_scheduler=agent_scheduler,
+            )
+            self._container.register_singleton("runtime_scheduler_bridge", scheduler_bridge)
+
+            kernel.module_registry.register_module(
+                "workflow_runtime", "1.0.0",
+                ["event_bus", "agent_coordinator", "shared_context", "scheduler"],
+                runtime_manager
+            )
+            kernel.capability_registry.register_capability(
+                name="WorkflowRuntime",
+                module_name="workflow_runtime",
+                description="Alpha 5.0 autonomous workflow runtime with step execution, checkpoints, and recovery"
+            )
+            logger.info("Workflow Runtime registered in OrionServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Workflow Runtime: {str(e)}")
+            raise e
+
         # Construct Context
         user_ctx = UserContext()
         mission_ctx = MissionContext()
@@ -281,5 +342,5 @@ class BootManager:
             metadata=metadata
         )
         
-        logger.info("Boot Step 11: Ready - Boot sequence completed successfully.")
+        logger.info("Boot Step 12: Ready - Boot sequence completed successfully.")
         return context
