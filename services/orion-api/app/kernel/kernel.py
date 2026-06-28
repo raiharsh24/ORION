@@ -153,11 +153,8 @@ class OrionKernel:
         except Exception as e:
             logger.error(f"Error during lifecycle shutdown: {str(e)}")
 
-        # Unregister all services from the container
-        services = self.list_services()
-        for name in services:
-            self.unregister_service(name)
-            
+        for name in list(self._container.list_services()):
+            self._container.unregister(name)
         self._state = KernelState.STOPPED
         if self._context:
             self._context.state = KernelState.STOPPED
@@ -257,6 +254,7 @@ class OrionKernel:
         scheduler_svc = self.get_service("scheduler")
         llm_svc = self.get_service("llm_router")
         agents_svc = self.get_service("agent_coordinator")
+        runtime_svc = self.get_service("runtime_scheduler_bridge")
         
         p_health = check_service_health("planner", planner_svc) if planner_svc else SubsystemHealth(name="planner", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         k_health = check_service_health("knowledge", knowledge_svc) if knowledge_svc else SubsystemHealth(name="knowledge", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
@@ -276,8 +274,9 @@ class OrionKernel:
         s_health = check_service_health("scheduler", scheduler_svc) if scheduler_svc else SubsystemHealth(name="scheduler", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         l_health = check_service_health("llm", llm_svc) if llm_svc else SubsystemHealth(name="llm", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         a_health = check_service_health("agents", agents_svc) if agents_svc else SubsystemHealth(name="agents", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        r_health = check_service_health("workflow_runtime", runtime_svc) if runtime_svc else SubsystemHealth(name="workflow_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         
-        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, mi_health.status, a_health.status]
+        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, mi_health.status, a_health.status, r_health.status]
         if HealthStatus.ERROR in statuses or self._state == KernelState.ERROR:
             overall = HealthStatus.ERROR
         elif HealthStatus.WARNING in statuses:
@@ -297,6 +296,7 @@ class OrionKernel:
         self._health_monitor.report_health("scheduler", s_health.status, s_health.message)
         self._health_monitor.report_health("llm", l_health.status, l_health.message)
         self._health_monitor.report_health("agents", a_health.status, a_health.message)
+        self._health_monitor.report_health("workflow_runtime", r_health.status, r_health.message)
             
         return KernelHealth(
             kernel_status=overall,
@@ -308,7 +308,8 @@ class OrionKernel:
             workflow=w_health,
             scheduler=s_health,
             llm=l_health,
-            agents=a_health
+            agents=a_health,
+            workflow_runtime=r_health,
         )
 
     def state(self) -> KernelState:

@@ -45,6 +45,10 @@ class WorkflowRuntimeManager:
 
     async def _start_execution(self, workflow: RuntimeWorkflow) -> RuntimeWorkflow:
         workflow_id = workflow.workflow_id
+        existing = self._active_runs.get(workflow_id)
+        if existing is not None and not existing.done():
+            logger.warning(f"Workflow '{workflow_id}' is already running, skipping duplicate start")
+            return workflow
         self._active_workflows[workflow_id] = workflow
         self._start_times[workflow_id] = time.time()
 

@@ -1,6 +1,6 @@
 import asyncio
 import json
-import random
+import os
 from datetime import datetime, timezone
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from app.kernel.kernel import OrionKernel
 from app.kernel.state import KernelState
 from app.events.events import OrionEvent
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -22,18 +23,44 @@ def get_process_memory() -> int:
     return 268435456  # 256MB fallback
 
 def get_cpu_utilization() -> float:
-    return round(random.uniform(1.5, 8.0), 1)
+    try:
+        with open("/proc/self/stat", "r") as f:
+            data = f.read()
+        parts = data.split()
+        if len(parts) < 17:
+            return round(0.5, 1)
+        utime = int(parts[13])
+        stime = int(parts[14])
+        cutime = int(parts[15])
+        cstime = int(parts[16])
+        total_ticks = utime + stime + cutime + cstime
+        try:
+            clk_tck = os.sysconf(os.sysconf_names.get("SC_CLK_TCK", 3))
+        except (AttributeError, KeyError, ValueError, OSError):
+            clk_tck = 100
+        active_seconds = total_ticks / clk_tck
+        uptime = 0.0
+        try:
+            with open("/proc/uptime", "r") as f:
+                uptime = float(f.read().split()[0])
+        except Exception:
+            pass
+        if uptime > 0:
+            return round(min(active_seconds / uptime * 100, 100.0), 1)
+        return round(min(active_seconds * 100, 100.0), 1)
+    except Exception:
+        return round(0.5, 1)
 
 async def generate_system_events():
     kernel = OrionKernel.get_instance()
     health_data = kernel.health()
     mission_manager = kernel.get_service("mission_engine")
-    
+
     active_mission_id = "None"
     current_tool = ""
     workflow = ""
     is_running = False
-    
+
     if mission_manager:
         from app.api.missions import sync_mission_progress
         await sync_mission_progress(mission_manager)
@@ -45,21 +72,16 @@ async def generate_system_events():
             current_tool = active_mission.metadata.get("current_tool") or ""
             workflow = active_mission.metadata.get("workflowName") or ""
             is_running = True
-            
+
     cpu = get_cpu_utilization()
-    if is_running:
-        cpu = round(random.uniform(40.0, 95.0), 1)
-        
     mem_mb = round(get_process_memory() / 1024 / 1024, 1)
-    
+
     automation_svc = kernel.get_service("desktop_automation")
     auto_diags = {}
     if automation_svc:
         auto_diags = automation_svc.get_diagnostics()
-        
-    # ------------------------------------------------------------------
+
     # Workflow Engine telemetry
-    # ------------------------------------------------------------------
     workflow_svc = kernel.get_service("workflow_engine")
     current_workflow        = ""
     current_workflow_node   = ""
@@ -81,11 +103,11 @@ async def generate_system_events():
                 workflow_branch_last = f"{last_bd.get('node_id','')}→{last_bd.get('next','')}"
 
     telemetry_payload = {
-        "latency": round(random.uniform(10.0, 20.0), 1),
+        "latency": round(0.5, 1),
         "fps": 60,
         "memory": mem_mb,
-        "executionTimeMs": random.randint(110, 180) if is_running else random.randint(5, 15),
-        "eventsCount": random.randint(40, 120),
+        "executionTimeMs": round(5.0, 1),
+        "eventsCount": 0,
         "currentTool": current_tool,
         "workflow": workflow,
         "missionId": active_mission_id,
@@ -94,14 +116,13 @@ async def generate_system_events():
         "average_execution_time_ms": auto_diags.get("average_execution_time_ms", 0.0),
         "failure_count": auto_diags.get("failure_count", 0),
         "queue_length": auto_diags.get("queue_length", 0),
-        # Workflow Engine fields
         "current_workflow":         current_workflow,
         "current_workflow_node":    current_workflow_node,
         "workflow_duration_seconds": workflow_duration_secs,
         "workflow_branch_decisions": workflow_branch_last,
         "workflow_retries":         workflow_retries,
     }
-    
+
     kernel_payload = {
         "kernel_state": kernel.state().value,
         "boot_time_ms": 82.0,
@@ -114,31 +135,25 @@ async def generate_system_events():
             "checked_at": health_data.checked_at.isoformat()
         }
     }
-    
+
     services_list = []
-    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm"]
+    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm", "agents", "workflow_runtime"]
     for sub in subsystems:
         val = getattr(health_data, sub, None)
         if val:
             services_list.append({
-                "name": sub.capitalize() if sub != "llm" else "LLM",
+                "name": sub.capitalize() if sub not in ("llm", "workflow_runtime") else sub.replace("_", " ").title(),
                 "status": val.status.value,
                 "message": val.message or "Service operational."
             })
-    telemetry_val = getattr(health_data, "telemetry", None)
-    services_list.append({
-        "name": "Telemetry",
-        "status": telemetry_val.status.value if telemetry_val else "HEALTHY",
-        "message": telemetry_val.message if telemetry_val else "Service operational."
-    })
-    
+
     health_payload = {
         "status": "online",
         "assistant": "ORION",
-        "version": "0.2",
+        "version": settings.APP_VERSION,
         "services": services_list
     }
-    
+
     return [
         OrionEvent("TelemetryUpdated", telemetry_payload),
         OrionEvent("KernelHealthChanged", kernel_payload),
@@ -148,21 +163,21 @@ async def generate_system_events():
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    
+
     kernel = OrionKernel.get_instance()
     event_bus = kernel.get_service("event_bus")
-    
+
     queue = asyncio.Queue()
-    
+
     async def handler(event: OrionEvent):
         await queue.put({
             "topic": event.topic,
             "data": event.data,
             "timestamp": event.timestamp
         })
-        
+
     event_bus.subscribe("*", handler)
-    
+
     async def event_sender():
         try:
             while True:
@@ -170,7 +185,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_json(event_data)
         except asyncio.CancelledError:
             pass
-            
+
     async def ticker_loop():
         try:
             while True:
@@ -180,10 +195,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             pass
-            
+
     sender_task = asyncio.create_task(event_sender())
     ticker_task = asyncio.create_task(ticker_loop())
-    
+
     try:
         while True:
             data = await websocket.receive_text()
@@ -200,18 +215,18 @@ async def websocket_endpoint(websocket: WebSocket):
 async def sse_endpoint():
     kernel = OrionKernel.get_instance()
     event_bus = kernel.get_service("event_bus")
-    
+
     queue = asyncio.Queue()
-    
+
     async def handler(event: OrionEvent):
         await queue.put({
             "topic": event.topic,
             "data": event.data,
             "timestamp": event.timestamp
         })
-        
+
     event_bus.subscribe("*", handler)
-    
+
     async def sse_generator():
         async def ticker_loop():
             try:
@@ -222,9 +237,9 @@ async def sse_endpoint():
                     await asyncio.sleep(1)
             except asyncio.CancelledError:
                 pass
-                
+
         ticker_task = asyncio.create_task(ticker_loop())
-        
+
         try:
             while True:
                 try:
@@ -237,5 +252,5 @@ async def sse_endpoint():
         finally:
             ticker_task.cancel()
             event_bus.unsubscribe("*", handler)
-            
+
     return StreamingResponse(sse_generator(), media_type="text/event-stream")

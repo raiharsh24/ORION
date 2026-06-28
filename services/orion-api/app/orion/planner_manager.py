@@ -29,6 +29,7 @@ class PlannerManager:
         self.task_classifier = TaskClassifier()
         self.plan_validator = PlanValidator()
         self.clarification_manager = ClarificationManager()
+        self._pending_tasks: set = set()
         
         # Metrics
         self.planning_latency_sum = 0.0
@@ -46,13 +47,22 @@ class PlannerManager:
             if inspect.iscoroutinefunction(self._event_bus.publish):
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
+                    task = loop.create_task(self._event_bus.publish(event))
+                    self._pending_tasks.add(task)
+                    task.add_done_callback(self._pending_tasks.discard)
                 except RuntimeError:
                     asyncio.run(self._event_bus.publish(event))
             else:
                 self._event_bus.publish(event)
         except Exception as e:
             logger.error(f"Failed to publish event to EventBus: {str(e)}")
+
+    async def shutdown(self) -> None:
+        for task in list(self._pending_tasks):
+            task.cancel()
+        if self._pending_tasks:
+            await asyncio.wait(self._pending_tasks, timeout=2.0)
+        self._pending_tasks.clear()
 
     async def create_plan(self, prompt: str, legacy_intent: Optional[IntentType] = None) -> ExecutionPlan:
         """

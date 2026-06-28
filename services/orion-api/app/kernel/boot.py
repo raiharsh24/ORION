@@ -185,7 +185,7 @@ class BootManager:
         logger.info("Workflow Engine (full) registered in OrionServiceContainer.")
         
         # Step 10: Initialize Scheduler
-        logger.info("Boot Step 10: Initialize Scheduler (Placeholder)...")
+        logger.info("Boot Step 10: Initialize Scheduler...")
         scheduler = OrionScheduler()
         self._container.register_singleton("scheduler", scheduler)
         kernel.module_registry.register_module("scheduler", "1.0.0", [], scheduler)

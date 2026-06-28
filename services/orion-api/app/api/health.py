@@ -11,27 +11,20 @@ async def health_check() -> HealthResponse:
     kernel = OrionKernel.get_instance()
     if kernel.state() == KernelState.STOPPED:
         await kernel.boot()
-        
+
     health_data = kernel.health()
-    
+
     services_list = []
-    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm"]
+    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm", "agents", "workflow_runtime"]
     for sub in subsystems:
         val = getattr(health_data, sub, None)
         if val:
             services_list.append({
-                "name": sub.capitalize() if sub != "llm" else "LLM",
+                "name": sub.capitalize() if sub not in ("llm", "workflow_runtime") else sub.replace("_", " ").title(),
                 "status": val.status.value,
                 "message": val.message or "Service operational."
             })
-            
-    telemetry_val = getattr(health_data, "telemetry", None)
-    services_list.append({
-        "name": "Telemetry",
-        "status": telemetry_val.status.value if telemetry_val else "HEALTHY",
-        "message": telemetry_val.message if telemetry_val else "Service operational."
-    })
-            
+
     return HealthResponse(
         status="online",
         assistant="ORION",

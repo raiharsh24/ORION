@@ -2,7 +2,7 @@ import time
 import uuid
 import socket
 from loguru import logger
-from typing import List, Dict, Any, AsyncGenerator
+from typing import List, Dict, Any, AsyncGenerator, Optional
 
 from app.orion.intent import IntentClassifier, IntentType
 from app.memory.conversation import ConversationMemory
@@ -14,11 +14,12 @@ from app.llm.router import LLMRouter
 from app.orion.response import OrionResponse, OrionTelemetry
 from app.orion.planner import Planner
 from app.orion.executor import ToolExecutor
+from app.orion.plan_adapter import execution_plan_to_input, extract_tool_output, format_tool_output_for_prompt
 
 class OrionOrchestrator:
     """
     Coordinates ORION Core intelligence logic and pipeline pathways:
-    API -> Intent Classifier -> Planner -> Tool Executor -> Tools -> Prompts -> LLM Router -> Response Formatter.
+    API -> Intent Classifier -> Planner -> Tool Executor / Workflow Runtime -> Tools -> Prompts -> LLM Router -> Response Formatter.
     """
     def __init__(
         self,
@@ -27,7 +28,8 @@ class OrionOrchestrator:
         memory: ConversationMemory,
         prompt_manager: PromptManager,
         tool_registry: ToolRegistry,
-        embeddings: EmbeddingsManager
+        embeddings: EmbeddingsManager,
+        runtime_bridge: Optional[Any] = None,
     ) -> None:
         self.llm_router = llm_router
         self.intent_classifier = intent_classifier
@@ -37,6 +39,7 @@ class OrionOrchestrator:
         self.embeddings = embeddings
         self.planner = Planner()
         self.tool_executor = ToolExecutor(tool_registry)
+        self._runtime_bridge = runtime_bridge
         logger.info("OrionOrchestrator coordinates initialized with Action Engine modules.")
 
     def _estimate_tokens(self, text: str) -> int:
@@ -109,26 +112,36 @@ class OrionOrchestrator:
         plan = await self.planner.plan(prompt, intent)
         if plan:
             tool_used = plan.tool_name
-            exec_result = await self.tool_executor.execute(plan, confirmed, confirmation_token)
-            
-            if exec_result.confirmation_required:
-                latency_ms = (time.time() - start_time) * 1000
-                return OrionResponse(
-                    success=False,
-                    intent=intent.value,
-                    response=exec_result.output,
-                    tool_used=tool_used,
-                    session_id=sess_id,
-                    execution_time_ms=latency_ms,
-                    telemetry=OrionTelemetry(model=provider_name, error="ConfirmationRequired"),
-                    confirmation_required=True,
-                    confirmation_token=exec_result.confirmation_token
-                )
-            
-            if exec_result.success:
-                tool_output = exec_result.output
+
+            if self._runtime_bridge and plan.steps:
+                runtime_input = execution_plan_to_input(plan)
+                workflow = await self._runtime_bridge.submit_and_wait(runtime_input)
+                tool_outputs = extract_tool_output(workflow)
+                if tool_outputs:
+                    tool_output = format_tool_output_for_prompt(tool_outputs)
+                else:
+                    tool_output = "Workflow completed but no tool output captured."
             else:
-                tool_output = f"Error executing tool: {exec_result.error}"
+                exec_result = await self.tool_executor.execute(plan, confirmed, confirmation_token)
+
+                if exec_result.confirmation_required:
+                    latency_ms = (time.time() - start_time) * 1000
+                    return OrionResponse(
+                        success=False,
+                        intent=intent.value,
+                        response=exec_result.output,
+                        tool_used=tool_used,
+                        session_id=sess_id,
+                        execution_time_ms=latency_ms,
+                        telemetry=OrionTelemetry(model=provider_name, error="ConfirmationRequired"),
+                        confirmation_required=True,
+                        confirmation_token=exec_result.confirmation_token
+                    )
+
+                if exec_result.success:
+                    tool_output = exec_result.output
+                else:
+                    tool_output = f"Error executing tool: {exec_result.error}"
 
         if tool_used:
             logger.info(f"Tool usage: '{tool_used}' triggered. Output: {tool_output[:40]}...")
@@ -257,11 +270,21 @@ class OrionOrchestrator:
         plan = await self.planner.plan(prompt, intent)
         if plan:
             tool_used = plan.tool_name
-            exec_result = await self.tool_executor.execute(plan, confirmed, confirmation_token)
-            if exec_result.success:
-                tool_output = exec_result.output
+
+            if self._runtime_bridge and plan.steps:
+                runtime_input = execution_plan_to_input(plan)
+                workflow = await self._runtime_bridge.submit_and_wait(runtime_input)
+                tool_outputs = extract_tool_output(workflow)
+                if tool_outputs:
+                    tool_output = format_tool_output_for_prompt(tool_outputs)
+                else:
+                    tool_output = "Workflow completed but no tool output captured."
             else:
-                tool_output = f"Error executing tool: {exec_result.error}"
+                exec_result = await self.tool_executor.execute(plan, confirmed, confirmation_token)
+                if exec_result.success:
+                    tool_output = exec_result.output
+                else:
+                    tool_output = f"Error executing tool: {exec_result.error}"
 
         sys_context = SystemContext()
         session = self.memory.get_or_create_session(sess_id)
