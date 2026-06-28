@@ -557,7 +557,7 @@ export interface components {
         AskRequest: {
             /**
              * Prompt
-             * @description The query prompt sent to ORION
+             * @description The query prompt sent to FRIDAY
              * @example Hello
              */
             prompt: string;
@@ -628,7 +628,7 @@ export interface components {
         ChatRequest: {
             /**
              * Prompt
-             * @description The query prompt sent to ORION
+             * @description The query prompt sent to FRIDAY
              */
             prompt: string;
             /**
@@ -781,7 +781,7 @@ export interface components {
             /**
              * Assistant
              * @description The name of the system assistant agent
-             * @default ORION
+             * @default FRIDAY
              */
             assistant: string;
             /**

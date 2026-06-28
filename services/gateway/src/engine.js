@@ -1,7 +1,7 @@
-import { OrionEngine } from '../../../src/ai/OrionEngine.js';
+import { FridayEngine } from '../../../src/ai/FridayEngine.js';
 
-// Shared singleton OrionEngine instance
+// Shared singleton FridayEngine instance
 // Forced reload comment
-export const engine = new OrionEngine({
+export const engine = new FridayEngine({
   context: { maxMessageCount: 50, maxTokenLimit: 4096 }
 });

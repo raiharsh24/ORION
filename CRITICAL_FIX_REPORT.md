@@ -95,7 +95,7 @@ async def shutdown(self) -> None:
 
 ## C3: AgentCoordinator Lifecycle Fix
 
-**Root cause:** `AgentCoordinator` had no `shutdown()`, `stop()`, or `close()` method. The `OrionLifecycleManager.shutdown_all()` found no hook and skipped it entirely. All pending tasks, circuit breakers, dead letter queue entries, active delegations, and the `AgentScheduler` tick loop were orphaned on kernel shutdown.
+**Root cause:** `AgentCoordinator` had no `shutdown()`, `stop()`, or `close()` method. The `FridayLifecycleManager.shutdown_all()` found no hook and skipped it entirely. All pending tasks, circuit breakers, dead letter queue entries, active delegations, and the `AgentScheduler` tick loop were orphaned on kernel shutdown.
 
 **Fix:** Added `shutdown()` method to `AgentCoordinator` (`coordinator.py:207-225`) that:
 
@@ -137,12 +137,12 @@ async def shutdown(self) -> None:
 
 | File | Issue | Change |
 |------|-------|--------|
-| `services/orion-api/app/kernel/boot.py:291` | C1 | Added `workflow_worker.set_context(shared_context)` after agent registration |
-| `services/orion-api/app/memory/engine.py:56-67` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
-| `services/orion-api/app/orion/tool_engine.py:298-304` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
-| `services/orion-api/app/orion/knowledge_engine.py:210-217` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
-| `services/orion-api/app/orion/planner_engine.py:47-56` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
-| `services/orion-api/app/agents/coordinator.py:207-225` | C3 | Added `shutdown()` method with task cancellation, circuit breaker reset, dead letter drain, scheduler shutdown |
+| `services/friday-api/app/kernel/boot.py:291` | C1 | Added `workflow_worker.set_context(shared_context)` after agent registration |
+| `services/friday-api/app/memory/engine.py:56-67` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
+| `services/friday-api/app/friday/tool_engine.py:298-304` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
+| `services/friday-api/app/friday/knowledge_engine.py:210-217` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
+| `services/friday-api/app/friday/planner_engine.py:47-56` | C2 | Added unsubscribe and `_initialized = False` to `shutdown()`; stored `self._event_bus` |
+| `services/friday-api/app/agents/coordinator.py:207-225` | C3 | Added `shutdown()` method with task cancellation, circuit breaker reset, dead letter drain, scheduler shutdown |
 
 **Total: 6 files changed, ~80 lines added, ~5 lines modified.**
 

@@ -1,4 +1,4 @@
-# ORION Release Candidate Report — v1.0.0-rc1
+# FRIDAY Release Candidate Report — v1.0.0-rc1
 
 **Generated:** 2026-06-28  
 **Previous report:** `SYSTEM_VALIDATION_REPORT.md` (all 3 Critical + 7 High issues resolved)
@@ -7,13 +7,13 @@
 
 ## Architecture Overview
 
-ORION is a multi-process AI agent platform with four runtime tiers:
+FRIDAY is a multi-process AI agent platform with four runtime tiers:
 
 | Tier | Technology | Role |
 |------|-----------|------|
 | **Desktop UI** | React/TypeScript (Vite) | User interface, streaming chat, telemetry |
 | **Gateway** | Node.js/Express | Auth, session management, SSE/WS streaming proxy |
-| **Orion API** | Python/FastAPI | Orchestration, planning, tool execution, memory, knowledge |
+| **Friday API** | Python/FastAPI | Orchestration, planning, tool execution, memory, knowledge |
 | **Persistence** | JSON files, ChromaDB (optional) | Session memory, workflow state, vector embeddings |
 
 Communication flow: **Desktop UI → Gateway (REST/WS) → FastAPI (Python) → Subsystems**
@@ -29,18 +29,18 @@ All `/api/*` routes are proxied through the Gateway. Both `/path` and `/api/path
 | Subsystem | File | Lifecycle | Events | Status |
 |-----------|------|-----------|--------|--------|
 | EventBus | `app/events/bus.py` | ❌ No init/start, ✅ shutdown | Publisher | Operational |
-| OrionKernel | `app/kernel/kernel.py` | ✅ Full lifecycle | Dispatches boot/shutdown | Operational |
-| OrionServiceContainer | `app/kernel/container.py` | N/A (DI container) | — | Operational |
+| FridayKernel | `app/kernel/kernel.py` | ✅ Full lifecycle | Dispatches boot/shutdown | Operational |
+| FridayServiceContainer | `app/kernel/container.py` | N/A (DI container) | — | Operational |
 | LifecycleManager | `app/kernel/lifecycle_manager.py` | N/A (manages modules) | — | Operational |
 
 ### 2. Conversation & Planning
 
 | Subsystem | File | Lifecycle | Events | Status |
 |-----------|------|-----------|--------|--------|
-| OrionOrchestrator | `app/orion/orchestrator.py` | Per-request (via Depends) | ConversationReceived, ConversationCompleted | Operational |
-| IntentClassifier | `app/orion/intent.py` | N/A (stateless) | — | Operational |
-| PlannerEngine | `app/orion/planner_engine.py` | ✅ Full lifecycle | — | Operational |
-| PromptManager | `app/orion/prompt_manager.py` | N/A (stateless) | — | Operational |
+| FridayOrchestrator | `app/friday/orchestrator.py` | Per-request (via Depends) | ConversationReceived, ConversationCompleted | Operational |
+| IntentClassifier | `app/friday/intent.py` | N/A (stateless) | — | Operational |
+| PlannerEngine | `app/friday/planner_engine.py` | ✅ Full lifecycle | — | Operational |
+| PromptManager | `app/friday/prompt_manager.py` | N/A (stateless) | — | Operational |
 
 ### 3. Workflow Runtime
 
@@ -57,8 +57,8 @@ All `/api/*` routes are proxied through the Gateway. Both `/path` and `/api/path
 
 | Subsystem | File | Lifecycle | Events | Status |
 |-----------|------|-----------|--------|--------|
-| ToolEngine | `app/orion/tool_engine.py` | ✅ Full lifecycle | ToolCompleted | Operational |
-| ToolRegistry | `app/orion/tool_registry.py` | ❌ Not a module | — | Operational |
+| ToolEngine | `app/friday/tool_engine.py` | ✅ Full lifecycle | ToolCompleted | Operational |
+| ToolRegistry | `app/friday/tool_registry.py` | ❌ Not a module | — | Operational |
 | FilesystemTool | `app/tools/filesystem.py` | N/A (stateless) | — | Operational |
 | TerminalTool | `app/tools/terminal.py` | N/A (stateless) | — | Operational |
 | BrowserTool | `app/tools/browser.py` | N/A (stateless) | — | Operational |
@@ -80,12 +80,12 @@ All `/api/*` routes are proxied through the Gateway. Both `/path` and `/api/path
 
 | Subsystem | File | Lifecycle | Events | Status |
 |-----------|------|-----------|--------|--------|
-| KnowledgeEngine | `app/orion/knowledge_engine.py` | ✅ Full lifecycle | — | Operational |
-| KnowledgeManager | `app/orion/knowledge_engine.py` | N/A (internal) | — | Operational |
-| VectorDB | `app/orion/vectordb.py` | N/A (internal) | — | Operational (ChromaDB or JSON) |
-| DocumentParser | `app/orion/knowledge_document.py` | N/A (stateless) | — | Operational |
-| HybridRetriever | `app/orion/knowledge_retriever.py` | N/A (stateless) | — | Operational |
-| RetrievalEngine | `app/orion/retrieval.py` | N/A (internal) | — | Operational |
+| KnowledgeEngine | `app/friday/knowledge_engine.py` | ✅ Full lifecycle | — | Operational |
+| KnowledgeManager | `app/friday/knowledge_engine.py` | N/A (internal) | — | Operational |
+| VectorDB | `app/friday/vectordb.py` | N/A (internal) | — | Operational (ChromaDB or JSON) |
+| DocumentParser | `app/friday/knowledge_document.py` | N/A (stateless) | — | Operational |
+| HybridRetriever | `app/friday/knowledge_retriever.py` | N/A (stateless) | — | Operational |
+| RetrievalEngine | `app/friday/retrieval.py` | N/A (internal) | — | Operational |
 
 ### 7. Agents
 
@@ -116,7 +116,7 @@ All `/api/*` routes are proxied through the Gateway. Both `/path` and `/api/path
 
 | Subsystem | File | Lifecycle | Events | Status |
 |-----------|------|-----------|--------|--------|
-| OrionScheduler | `app/scheduler/scheduler.py` | ✅ start/stop (no init) | — | Operational |
+| FridayScheduler | `app/scheduler/scheduler.py` | ✅ start/stop (no init) | — | Operational |
 
 ### 11. Gateway (Node.js)
 
@@ -230,7 +230,7 @@ POST /chat ─────────────────► chatController
                                                               │       │
                                                               │       └── GeminiProvider.chat() / stream_chat()
                                                               │
-                                                              ├── 9. Format response (OrionResponse)
+                                                              ├── 9. Format response (FridayResponse)
                                                               │
                                                               ├── 10. MemoryManager.save_session() (publishes MemoryUpdated)
                                                               │
@@ -278,7 +278,7 @@ POST /chat ─────────────────► chatController
 - **New runtime cancel not exposed via REST** — Only the legacy `WorkflowEngine` cancel endpoint is exposed; the new `WorkflowRuntimeManager.cancel()` has no HTTP endpoint.
 - **PDF parsing is rough** — Binary text extraction only; no proper PDF library. Works for text PDFs but fails on scanned documents.
 - **LLM provider fallback** — Falls back to hash-based mock embeddings when no API key is configured.
-- **OrionOrchestrator is per-request** — New `IntentClassifier`, `PromptManager`, `EmbeddingsManager` created on every request (lightweight, but bypasses DI container).
+- **FridayOrchestrator is per-request** — New `IntentClassifier`, `PromptManager`, `EmbeddingsManager` created on every request (lightweight, but bypasses DI container).
 - **EventBus has no init/start** — Setup is done in `__init__`, bypassing the lifecycle manager's initialize/start hooks.
 
 ---
@@ -322,7 +322,7 @@ POST /chat ─────────────────► chatController
 |------|---------|-------|
 | `app/workflow/engine.py` | Legacy workflow engine | Never imported by any active code path |
 | `app/workflow/history.py` | Legacy workflow history | Never imported by any active code path |
-| `app/orion/knowledge_embeddings.py` | Embedding providers (stubs) | Never imported by active path; MemoryEngine.embed_text is used |
+| `app/friday/knowledge_embeddings.py` | Embedding providers (stubs) | Never imported by active path; MemoryEngine.embed_text is used |
 | `app/services/ai_service.py` | AI service stub | Never imported by active path |
 | `app/services/memory_service.py` | Memory service stub | Never imported by active path |
 | `app/memory/conversation.py` | ConversationMemory (legacy) | Imported by orchestrator.py but duck-typing used via MemoryEngine |
@@ -361,7 +361,7 @@ This build is suitable for:
 
 Before declaring GA, address:
 1. Call `EventBus.shutdown()` in FastAPI lifespan shutdown handler
-2. Register missing modules in `OrionModuleRegistry` (AgentScheduler, AgentRegistry, etc.)
+2. Register missing modules in `FridayModuleRegistry` (AgentScheduler, AgentRegistry, etc.)
 3. Expose new workflow runtime cancel via REST API
 4. Add timeout to `RuntimeSchedulerBridge.submit_and_wait`
 5. Add database backend (PostgreSQL or SQLite) for production persistence

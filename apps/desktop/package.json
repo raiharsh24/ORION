@@ -16,7 +16,7 @@
     "react-dom": "^19.2.7",
     "react-router-dom": "^7.18.0",
     "zustand": "^5.0.14",
-    "@orion/shared-types": "0.1.0"
+    "@friday/shared-types": "0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

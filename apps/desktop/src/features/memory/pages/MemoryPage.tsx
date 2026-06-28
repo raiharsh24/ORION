@@ -45,7 +45,7 @@ export const MemoryPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-matte-border/30 text-zinc-300">
                     <tr>
-                      <td className="py-3 text-cyan-glow font-bold">orion-core-docs</td>
+                      <td className="py-3 text-cyan-glow font-bold">friday-core-docs</td>
                       <td>1536</td>
                       <td>4,212</td>
                       <td>
@@ -53,7 +53,7 @@ export const MemoryPage: React.FC = () => {
                       </td>
                     </tr>
                     <tr>
-                      <td className="py-3 text-cyan-glow font-bold">project-orion-code</td>
+                      <td className="py-3 text-cyan-glow font-bold">project-friday-code</td>
                       <td>1536</td>
                       <td>12,940</td>
                       <td>

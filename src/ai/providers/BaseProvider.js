@@ -1,6 +1,6 @@
 /**
  * @abstract
- * BaseProvider serves as the abstract interface for all LLM providers in ORION.
+ * BaseProvider serves as the abstract interface for all LLM providers in FRIDAY.
  * Subclasses must override abstract methods or throw errors.
  */
 export class BaseProvider {

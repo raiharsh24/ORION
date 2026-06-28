@@ -1,6 +1,6 @@
-# ORION Core v1.0 Developer Guide
+# FRIDAY Core v1.0 Developer Guide
 
-How to extend ORION with new tools, agents, LLM providers, memory providers, and workflow nodes.
+How to extend FRIDAY with new tools, agents, LLM providers, memory providers, and workflow nodes.
 
 ---
 
@@ -19,7 +19,7 @@ How to extend ORION with new tools, agents, LLM providers, memory providers, and
 
 ### Step 1: Create the tool class
 
-Create a file in `services/orion-api/app/tools/` and implement `BaseTool`:
+Create a file in `services/friday-api/app/tools/` and implement `BaseTool`:
 
 ```python
 from typing import Any
@@ -40,7 +40,7 @@ class MySearchTool(BaseTool):
 
 ### Step 2: Register with ToolRegistry
 
-In `services/orion-api/app/kernel/boot.py`, after the Tool Engine step:
+In `services/friday-api/app/kernel/boot.py`, after the Tool Engine step:
 
 ```python
 # Inside BootManager.run_boot_sequence(), after tool_engine registration
@@ -97,7 +97,7 @@ async def test_my_search_tool():
 
 ### Step 1: Create the agent class
 
-Create a file in `services/orion-api/app/agents/` and extend `BaseAgent`:
+Create a file in `services/friday-api/app/agents/` and extend `BaseAgent`:
 
 ```python
 from typing import Any, Optional
@@ -129,7 +129,7 @@ class MyCustomAgent(BaseAgent):
 
 ### Step 2: Register with AgentRegistry
 
-In `services/orion-api/app/kernel/boot.py`, Step 11 (after agent_coordinator registration):
+In `services/friday-api/app/kernel/boot.py`, Step 11 (after agent_coordinator registration):
 
 ```python
 my_agent = MyCustomAgent()
@@ -149,7 +149,7 @@ my_agent.set_context(shared_context)  # Required for tool execution access
 
 If the agent should handle workflow steps, add a handler in `WorkflowWorkerAgent`:
 
-In `services/orion-api/app/workflow_runtime/worker_agent.py`:
+In `services/friday-api/app/workflow_runtime/worker_agent.py`:
 
 ```python
 if step.type == "my_custom":
@@ -199,7 +199,7 @@ class SharedContext:
 The Python side (`app/llm/`) routes to adapters. Create an adapter implementing the expected interface:
 
 ```python
-# services/orion-api/app/llm/anthropic.py
+# services/friday-api/app/llm/anthropic.py
 from typing import List, Dict, AsyncGenerator
 
 class AnthropicAdapter:
@@ -237,7 +237,7 @@ export class AnthropicProvider {
 
 ### Step 2: Register with LLMRouter
 
-In `services/orion-api/app/kernel/boot.py`, Step 10b:
+In `services/friday-api/app/kernel/boot.py`, Step 10b:
 
 ```python
 from app.llm.anthropic import AnthropicAdapter
@@ -251,7 +251,7 @@ llm_router.register_provider("anthropic", anthropic_adapter, is_default=False)
 
 ### Step 3: Add configuration
 
-Extend `OrionKernelConfig` in `services/orion-api/app/kernel/config.py`:
+Extend `FridayKernelConfig` in `services/friday-api/app/kernel/config.py`:
 
 ```python
 # Add to api_keys section
@@ -325,7 +325,7 @@ class PostgresMemoryStore(MemoryStore):
 
 ### Step 2: Wire into MemoryEngine
 
-In `services/orion-api/app/memory/engine.py`:
+In `services/friday-api/app/memory/engine.py`:
 
 ```python
 # Inside MemoryEngine.__init__() or initialize()
@@ -333,7 +333,7 @@ self._store = PostgresMemoryStore(config.get("database_url"))
 await self._store.initialize()
 ```
 
-Alternatively, switch the store creation in `services/orion-api/app/core/dependencies.py`:
+Alternatively, switch the store creation in `services/friday-api/app/core/dependencies.py`:
 
 ```python
 from app.memory.store import PostgresMemoryStore
@@ -367,7 +367,7 @@ If your store needs async initialization, call it in `MemoryEngine.initialize()`
 
 ### Step 1: Extend the step type enum
 
-In `services/orion-api/app/workflow_runtime/models.py`:
+In `services/friday-api/app/workflow_runtime/models.py`:
 
 ```python
 from enum import Enum
@@ -386,7 +386,7 @@ class StepType(str, Enum):
 
 ### Step 2: Add handler in WorkflowWorkerAgent
 
-In `services/orion-api/app/workflow_runtime/worker_agent.py`:
+In `services/friday-api/app/workflow_runtime/worker_agent.py`:
 
 ```python
 async def _execute_http_request(self, step: RuntimeStep) -> Dict[str, Any]:
@@ -412,7 +412,7 @@ if step.type == "http_request":
 
 ### Step 3: Register in Planner (optional)
 
-If the planner should generate this step type, update the planner logic in `app/orion/planner.py` to emit `http_request` steps when appropriate.
+If the planner should generate this step type, update the planner logic in `app/friday/planner.py` to emit `http_request` steps when appropriate.
 
 ### Step 4: Test
 
@@ -444,7 +444,7 @@ async def test_http_request_step():
 Run the full test suite:
 
 ```bash
-cd services/orion-api
+cd services/friday-api
 python3 -m pytest tests/ -x -q
 ```
 

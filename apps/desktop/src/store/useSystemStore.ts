@@ -112,7 +112,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
   },
   systemStatus: 'nominal',
   logs: [
-    { id: '1', timestamp: '12:05:29', type: 'info', message: 'ORION Kernel loaded successfully.' },
+    { id: '1', timestamp: '12:05:29', type: 'info', message: 'FRIDAY Kernel loaded successfully.' },
     { id: '2', timestamp: '12:05:30', type: 'success', message: 'Neural network client synchronized.' },
     { id: '3', timestamp: '12:05:32', type: 'info', message: 'Security handshake complete.' },
   ],
@@ -250,7 +250,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         if (result.success === false) {
           const assistantMsg: ChatMessage = {
             role: 'assistant',
-            content: "ORION:\nUnable to process your request.",
+            content: "FRIDAY:\nUnable to process your request.",
             timestamp: Date.now() / 1000
           };
 
@@ -358,7 +358,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
             try {
               const parsed = JSON.parse(chunk);
               if (parsed.success === false) {
-                accumulated = "ORION:\nUnable to process your request.";
+                accumulated = "FRIDAY:\nUnable to process your request.";
                 break;
               }
               

@@ -1,6 +1,6 @@
-import { OrionResponse, TelemetrySnapshot, Session } from './index';
+import { FridayResponse, TelemetrySnapshot, Session } from './index';
 
-export function mapResponseToTelemetry(res: OrionResponse): TelemetrySnapshot {
+export function mapResponseToTelemetry(res: FridayResponse): TelemetrySnapshot {
   return {
     model: res.model || '',
     provider: res.provider || '',

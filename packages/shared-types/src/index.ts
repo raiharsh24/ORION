@@ -33,7 +33,7 @@ export interface TokenUsage {
   totalTokens: number;
 }
 
-export interface OrionResponse {
+export interface FridayResponse {
   success: boolean;
   provider: string;
   model: string;

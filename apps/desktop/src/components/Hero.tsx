@@ -36,13 +36,13 @@ export const Hero: React.FC = () => {
     const query = command;
     setCommand('');
 
-    const newLog = `usr@orion:~$ ${query}`;
+    const newLog = `usr@friday:~$ ${query}`;
     const cmd = query.toLowerCase().trim();
 
     if (cmd === 'help') {
       setSystemLogs((prev) => [...prev, newLog, 'Available modules: system, diagnostics, neural, clear']);
     } else if (cmd === 'system') {
-      setSystemLogs((prev) => [...prev, newLog, 'ORION OS v0.1.0 // Kernel: Darwin/Linux // Arch: ARM64/x64']);
+      setSystemLogs((prev) => [...prev, newLog, 'FRIDAY OS v0.1.0 // Kernel: Darwin/Linux // Arch: ARM64/x64']);
     } else if (cmd === 'diagnostics') {
       setSystemLogs((prev) => [...prev, newLog, 'All subsystems nominal. Latency: 4ms. Integrity: 100%']);
     } else if (cmd === 'neural') {
@@ -94,7 +94,7 @@ export const Hero: React.FC = () => {
 
       {/* Main OS Brand */}
       <h1 className="text-7xl md:text-8xl lg:text-9xl font-extrabold tracking-[0.2em] text-center bg-gradient-to-b from-white via-zinc-200 to-zinc-600 bg-clip-text text-transparent drop-shadow-[0_0_30px_rgba(0,242,254,0.15)] select-text">
-        ORION
+        FRIDAY
       </h1>
       
       <p className="mt-4 font-mono text-sm md:text-base tracking-[0.4em] text-cyan-glow uppercase font-medium">
@@ -139,7 +139,7 @@ export const Hero: React.FC = () => {
         <div className="bg-black/60 border border-matte-border/80 rounded-xl p-4 font-mono text-xs text-zinc-400 min-h-[100px] max-h-[140px] overflow-y-auto mb-4 scrollbar-thin">
           {systemLogs.map((log, index) => (
             <div key={index} className="mb-1 leading-relaxed">
-              {log.startsWith('usr@orion') ? (
+              {log.startsWith('usr@friday') ? (
                 <span className="text-zinc-500">{log}</span>
               ) : log.startsWith('Error') ? (
                 <span className="text-rose-400">{log}</span>

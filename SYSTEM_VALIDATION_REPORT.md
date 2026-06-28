@@ -1,7 +1,7 @@
-# ORION System Validation Report
+# FRIDAY System Validation Report
 
 **Date:** 2026-06-28
-**Scope:** Full-stack static analysis — Desktop UI → Express Gateway → Orion API (Node.js + Python)
+**Scope:** Full-stack static analysis — Desktop UI → Express Gateway → Friday API (Node.js + Python)
 **Validator:** Lead Software Architect
 
 ---
@@ -13,7 +13,7 @@ Desktop UI (Vite, port 5173)
   │
   ├─ fetch("http://localhost:5000/chat") ──→ Express Gateway (port 5000)
   │                                              │
-  │                                              ├─ POST /chat    → Node.js OrionEngine → GeminiProvider → ResponseFormatter
+  │                                              ├─ POST /chat    → Node.js FridayEngine → GeminiProvider → ResponseFormatter
   │                                              ├─ POST /ask     → http-proxy-middleware → Python FastAPI (port 8000)
   │                                              ├─ POST /chat/stream → Node.js streaming → SSE
   │                                              └─ GET /events   → proxy → Python SSE
@@ -26,7 +26,7 @@ Two entirely independent conversation stacks exist:
 | Layer | Path A (Node.js) | Path B (Python) |
 |-------|------------------|-----------------|
 | Entry | POST /chat | POST /ask, POST /chat |
-| Engine | OrionEngine.js | OrionOrchestrator (Python) |
+| Engine | FridayEngine.js | FridayOrchestrator (Python) |
 | Session | SessionManager (in-memory) | ConversationMemory (in-memory dict) |
 | LLM | GeminiProvider | LLMRouter → GeminiAdapter |
 | Stream | StreamManager (SSE chunks) | process_stream() → SSE `data:` |
@@ -39,7 +39,7 @@ Two entirely independent conversation stacks exist:
 ### Path A: Desktop → Node.js Chat (non-stream)
 
 ```
-Desktop                 Gateway                 OrionEngine              SessionManager          GeminiProvider
+Desktop                 Gateway                 FridayEngine              SessionManager          GeminiProvider
   │                        │                        │                        │                       │
   │─ POST /chat ──────────→│                        │                        │                       │
   │  {prompt, session_id}  │                        │                        │                       │
@@ -61,7 +61,7 @@ Desktop                 Gateway                 OrionEngine              Session
 ### Path B: Direct Python Chat (non-stream)
 
 ```
-Client                  FastAPI                 OrionOrchestrator       IntentClassifier        Planner
+Client                  FastAPI                 FridayOrchestrator       IntentClassifier        Planner
   │                        │                        │                        │                   │
   │─ POST /ask ───────────→│                        │                        │                   │
   │                        │─ process_query() ─────→│                        │                   │
@@ -78,14 +78,14 @@ Client                  FastAPI                 OrionOrchestrator       IntentCl
   │                        │                        │─ llm.generate()        │                   │
   │                        │                        │─ memory.add_message()  │                   │
   │                        │                        │─ calculate_telemetry() │                   │
-  │                        │←─ OrionResponse ──────│                        │                   │
+  │                        │←─ FridayResponse ──────│                        │                   │
   │←─ AskResponse ────────│                        │                        │                   │
 ```
 
 ### Path C: Streaming (Desktop → Node.js → SSE → Desktop)
 
 ```
-Desktop              Gateway                  OrionEngine              GeminiProvider
+Desktop              Gateway                  FridayEngine              GeminiProvider
   │                     │                         │                       │
   │─ POST /chat ───────→│                         │                       │
   │ stream:true         │                         │                       │
@@ -112,7 +112,7 @@ Desktop              Gateway                  OrionEngine              GeminiPro
 
 ```
 POST /chat (Gateway)  ──→ chatController.js
-  ├─ engine.chat() ──────→ OrionEngine.js
+  ├─ engine.chat() ──────→ FridayEngine.js
   │   ├─ SessionManager.getOrCreateSession()
   │   ├─ ConversationManager.getHistory()
   │   ├─ ContextManager.build()
@@ -121,7 +121,7 @@ POST /chat (Gateway)  ──→ chatController.js
   │   ├─ ResponseFormatter.format()
   │   └─ SessionManager.updateSession()
   │
-  ├─ engine.streamChat() → OrionEngine.js
+  ├─ engine.streamChat() → FridayEngine.js
   │   ├─ (same path but stream: true)
   │   └─ StreamManager.handleStream()
   │       ├─ onChunk → res.write(`data: ...\n\n`)
@@ -129,7 +129,7 @@ POST /chat (Gateway)  ──→ chatController.js
   │       └─ onError → res.write(`data: {error}\n\n`); res.end()
 
 POST /ask (Gateway proxy → Python)  ──→ routes.py:ask()
-  ├─ get_orchestrator() → OrionKernel.boot()
+  ├─ get_orchestrator() → FridayKernel.boot()
   │   └─ BootManager.run_boot_sequence()
   │       ├─ EventBus
   │       ├─ MemoryEngine → MemoryManager → JSONStore/InMemoryStore
@@ -189,7 +189,7 @@ EventBus (singleton, in-process)
   ├─ ← WorkflowRuntimeExecutor publishes:
   │   WorkflowStepStarted, WorkflowStepCompleted
   │
-  └─ ← OrionKernel publishes:
+  └─ ← FridayKernel publishes:
       KernelBooting, KernelReady, KernelShutdown, KernelRestart,
       KernelError, ServiceRegistered, ServiceStopped, ServiceFailed
 
@@ -224,7 +224,7 @@ routes.py → AskRequest.session_id
   │  └──────────────────────────────────────────────────────┘
   │
   ▼
-OrionOrchestrator.process_query()
+FridayOrchestrator.process_query()
   ├─ Intent: "SYSTEM_COMMAND" | "CHAT" | "WORKFLOW" | ...
   ├─ Plan: {tool_name, steps[], variables{}}
   │   └─ ToolExecutor.execute() → ToolOutput
@@ -233,7 +233,7 @@ OrionOrchestrator.process_query()
   │           └─ execute_parallel_steps: concurrent writes to same dict
   ├─ FullPrompt: system_instruction + history + user_message + tool_output
   ├─ LLM Response: str
-  └─ OrionResponse: {success, intent, response, tool_used, session_id, execution_time_ms, telemetry}
+  └─ FridayResponse: {success, intent, response, tool_used, session_id, execution_time_ms, telemetry}
   │
   ▼
 AskResponse / AskResponse (via route)
@@ -248,7 +248,7 @@ AskResponse / AskResponse (via route)
 Request body (prompt, session_id, stream)
   │
   ▼
-OrionEngine.chat()
+FridayEngine.chat()
   ├─ SessionManager.getOrCreateSession(sessionId) → ChatSession
   ├─ ConversationManager.getHistory(sessionId) → messages[]
   ├─ ContextManager.build(sessionId, message) → {sessionContext, ...}
@@ -267,8 +267,8 @@ OrionEngine.chat()
 ## 6. Dependency Graph
 
 ```
-OrionKernel (singleton)
-  ├── OrionServiceContainer (DI)
+FridayKernel (singleton)
+  ├── FridayServiceContainer (DI)
   │   ├── event_bus (EventBus)
   │   ├── memory_engine (MemoryEngine → MemoryManager → JSONStore)
   │   ├── knowledge_engine (KnowledgeEngine)
@@ -281,7 +281,7 @@ OrionKernel (singleton)
   │   ├── mission_engine (MissionManager)
   │   ├── workflow_history (WorkflowHistory)
   │   ├── workflow_engine (WorkflowEngine)
-  │   ├── scheduler (OrionScheduler)
+  │   ├── scheduler (FridayScheduler)
   │   ├── llm_router (LLMRouter → GeminiAdapter)
   │   ├── agent_message_bus (AgentMessageBus → EventBus)
   │   ├── agent_registry (AgentRegistry → EventBus + MessageBus)
@@ -296,12 +296,12 @@ OrionKernel (singleton)
   │   ├── workflow_runtime_manager (WorkflowRuntimeManager → persistence + executor + event_bus)
   │   └── runtime_scheduler_bridge (RuntimeSchedulerBridge → manager + agent_scheduler)
   │
-  ├── OrionModuleRegistry (module → dependencies + instance)
-  ├── OrionCapabilityRegistry (name → module → description)
-  ├── OrionLifecycleManager (module_registry → topological init/start/shutdown)
-  ├── OrionHealthMonitor (health checks)
-  ├── OrionConfigSystem (config)
-  └── OrionKernelContext (user + mission + workspace + services + state + config + metadata)
+  ├── FridayModuleRegistry (module → dependencies + instance)
+  ├── FridayCapabilityRegistry (name → module → description)
+  ├── FridayLifecycleManager (module_registry → topological init/start/shutdown)
+  ├── FridayHealthMonitor (health checks)
+  ├── FridayConfigSystem (config)
+  └── FridayKernelContext (user + mission + workspace + services + state + config + metadata)
 ```
 
 ---
@@ -313,15 +313,15 @@ OrionKernel (singleton)
 | # | Issue | File(s) | Description |
 |---|-------|---------|-------------|
 | **C1** | **WorkflowWorkerAgent has no context — every step execution crashes** | `worker_agent.py:55-58`, `registry.py:15-30`, `boot.py:285-290` | `AgentRegistry.register()` calls `agent.set_event_bus()` and `agent.set_message_bus()` but **never calls `agent.set_context()`**. The `WorkflowWorkerAgent._execute_tool()`, `_execute_llm()`, `_execute_knowledge()`, `_execute_mission()`, `_execute_notification()`, and `_execute_agent_task()` all read `self._context` (inherited from `BaseAgent`, initialized to `None`). The agent stores its own `self._shared_context` (passed at construction) but never uses it. Every tool/LLM/knowledge/mission/notification execution raises `RuntimeError("SharedContext unavailable for ...")`. The full Workflow Runtime pipeline — `Orchestrator → RuntimeBridge → WorkflowRuntimeExecutor → AgentCoordinator → WorkflowWorkerAgent` — cannot execute any step. |
-| **C2** | **EventBus subscribers never unsubscribe — memory leak on restart** | `engine.py:43-46`, `bus.py:23-37` | `MemoryEngine.initialize()` subscribes 4 callbacks to EventBus: `ConversationCompleted`, `ToolCompleted`, `MissionCompleted`, `WorkflowCompleted`. Neither `MemoryEngine.shutdown()` nor `EventBus` has an unsubscribe mechanism integrated — no component tracks subscription handles for cleanup. On every `OrionKernel.restart()` or `shutdown()/boot()` cycle (which the health endpoint triggers if state != READY), 4 new subscriber entries are appended. After N restarts, N×4 handlers dispatch for every matched event, causing duplicate side effects. |
-| **C3** | **AgentCoordinator has no shutdown lifecycle — tasks, circuit breakers, dead letter queue leak** | `coordinator.py:40-44`, `kernel.py:133-161` | `AgentCoordinator` initializes `_pending_tasks`, `_active_delegations`, `_circuit_breakers`, and `_dead_letter_queue` in `__init__` but provides **no `shutdown()` method**. `OrionKernel.shutdown()` calls `LifecycleManager.shutdown_all()` which iterates registered modules — but `agent_coordinator` is registered as a module with dependencies, and its instance **has no `shutdown`, `stop`, or `close` method**. All pending tasks, circuit breaker state, and queued dead letters are orphaned on kernel shutdown/restart. The `AgentScheduler` started in boot step 11 also has no registered shutdown. |
+| **C2** | **EventBus subscribers never unsubscribe — memory leak on restart** | `engine.py:43-46`, `bus.py:23-37` | `MemoryEngine.initialize()` subscribes 4 callbacks to EventBus: `ConversationCompleted`, `ToolCompleted`, `MissionCompleted`, `WorkflowCompleted`. Neither `MemoryEngine.shutdown()` nor `EventBus` has an unsubscribe mechanism integrated — no component tracks subscription handles for cleanup. On every `FridayKernel.restart()` or `shutdown()/boot()` cycle (which the health endpoint triggers if state != READY), 4 new subscriber entries are appended. After N restarts, N×4 handlers dispatch for every matched event, causing duplicate side effects. |
+| **C3** | **AgentCoordinator has no shutdown lifecycle — tasks, circuit breakers, dead letter queue leak** | `coordinator.py:40-44`, `kernel.py:133-161` | `AgentCoordinator` initializes `_pending_tasks`, `_active_delegations`, `_circuit_breakers`, and `_dead_letter_queue` in `__init__` but provides **no `shutdown()` method**. `FridayKernel.shutdown()` calls `LifecycleManager.shutdown_all()` which iterates registered modules — but `agent_coordinator` is registered as a module with dependencies, and its instance **has no `shutdown`, `stop`, or `close` method**. All pending tasks, circuit breaker state, and queued dead letters are orphaned on kernel shutdown/restart. The `AgentScheduler` started in boot step 11 also has no registered shutdown. |
 
 ### HIGH (7)
 
 | # | Issue | File(s) | Description |
 |---|-------|---------|-------------|
 | **H1** | **Two independent session stores with zero synchronization** | `conversation.py:23-24` (Python dict), SessionManager.js (Node.js in-memory) | Python's `ConversationMemory._sessions` is a plain dict holding `ChatSession` objects; Node.js's `SessionManager` is an in-memory Map. They share the same `session_id` namespace but have **no data consistency mechanism**. The Desktop calls `POST /chat` → Node.js path, which stores session in Node.js memory. The Python `/ask` path stores in Python memory. `GET /sessions/:id` returns Node.js session data; Python's ConversationMemory is never queried. Sessions created in one path are invisible to the other. |
-| **H2** | **Duplicate model definitions across subsystems** | Multiple files | `ChatMessage` is defined in both `conversation.py:5-8` and `schema.py:5-8`. `ToolExecutionResult` is defined in `executor.py` and `tool_engine.py`. `CapabilityRegistry` exists in both `orion/` and `kernel/`. `PermissionManager` in `policies/` and `tool_permission/`. These are structurally identical but independent — no shared base class, no validation that they stay in sync. |
+| **H2** | **Duplicate model definitions across subsystems** | Multiple files | `ChatMessage` is defined in both `conversation.py:5-8` and `schema.py:5-8`. `ToolExecutionResult` is defined in `executor.py` and `tool_engine.py`. `CapabilityRegistry` exists in both `friday/` and `kernel/`. `PermissionManager` in `policies/` and `tool_permission/`. These are structurally identical but independent — no shared base class, no validation that they stay in sync. |
 | **H3** | **Sequential event dispatch — no concurrent fan-out, subscriber chain blocks publisher** | `bus.py:84-92` | `EventBus.publish()` collects all matching subscribers, sorts by priority, then **dispatches sequentially in the publisher's coroutine**. A slow subscriber (e.g., `MemoryManager.on_conversation_completed` doing full JSON serialization) blocks all subsequent subscribers and the caller's event loop. There is no `asyncio.gather()` or `create_task()` fan-out for independent handlers. |
 | **H4** | **Fire-and-forget event publishing — background tasks fail silently** | `coordinator.py:219-233`, `base.py:95-110`, `registry.py:81-96`, `executor.py:168-178` | Four components use identical pattern: `loop.create_task(self._event_bus.publish(event))` with bare `except Exception: logger.error(...)`. The `create_task` firehose means: (a) tasks are uncancellable, (b) exceptions after the `create_task` call are caught only by the generic logger.error inside the publish call, (c) if the event loop is closed during shutdown, `create_task` raises `RuntimeError` which is suppressed, and (d) no backpressure mechanism exists for a backed-up subscriber chain. |
 | **H5** | **Concurrent write race in execute_parallel_steps on shared variables dict** | `executor.py:93-109`, `executor.py:67-68` | `execute_parallel_steps()` passes the shared mutable `variables` dict to every concurrent `execute_step()` call via `asyncio.gather()`. Each step's success handler does `variables.update({f"{step.step_id}.output": result})`. Multiple concurrent `.update()` calls race — one step's output may overwrite another's, or the dict may observe partial updates mid-iteration from `_resolve_variables`. |
@@ -350,7 +350,7 @@ OrionKernel (singleton)
 | L1 | `router.post("/chat")` on Python side exists but is never proxied by Gateway | `routes.py:71-113`, `app.js:60-66` | Python `/chat` is fully implemented (stream + non-stream, confirmation loop) but the Gateway does not proxy `/chat` to Python — it handles it via Node.js. Unused code. |
 | L2 | `streamChatController` is functionally identical to `chatController` stream branch | `chatController.js:92-158` vs `chatController.js:35-67` | The stream branch of `chatController` and the separate `streamChatController` are identical except for validation order. Dead code path — no Desktop route calls `/chat/stream`. |
 | L3 | `SharedContext` eager-initializes all services in constructor | `context.py:6-18` | Takes a `kernel` reference and immediately calls `kernel.get_service()` for 9 services in `__init__`. If any service is not yet registered, it silently becomes `None`. Defers errors to first use. |
-| L4 | `OrionKernel.get_instance(config)` — config is ignored on subsequent calls | `kernel.py:57-61` | Singleton pattern: first call sets config, subsequent calls return the existing instance and silently discard the new config. |
+| L4 | `FridayKernel.get_instance(config)` — config is ignored on subsequent calls | `kernel.py:57-61` | Singleton pattern: first call sets config, subsequent calls return the existing instance and silently discard the new config. |
 | L5 | `Settings` import depends on local imports from `app.core.dependencies` | `routes.py:7`, `boot.py:67,110` | Mixed import styles: some imports are at module top, some are late inside functions. `routes.py` has `from app.core.dependencies import memory_store, tool_registry` at top but `get_orchestrator()` uses `kernel.boot()`. |
 | L6 | `EventBus.add_middleware()` registered but never called by any code | `bus.py:16-21` | Middleware interceptors exist in the dispatch pipeline but no component calls `add_middleware()`. |
 | L7 | `AgentCoordinator._publish_event()` creates task on event loop — no await | `coordinator.py:227` | Uses `loop.create_task()` for event publishing in a synchronous context. If the loop is closed, falls back to `asyncio.run()`. This can deadlock if called while a loop is already running in a different context. |

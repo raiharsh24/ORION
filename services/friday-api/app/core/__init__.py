@@ -1,0 +1,1 @@
+# FRIDAY API Core Module

@@ -189,7 +189,7 @@ export const AssistantPage: React.FC = () => {
             {chatMessages.length === 0 && !streamingMessage ? (
               <div className="h-full flex flex-col justify-center items-center text-center opacity-60">
                 <Bot className="w-10 h-10 text-cyan-glow/50 mb-3 animate-pulse" />
-                <h3 className="text-sm font-semibold text-zinc-300">ORION Synaptic Interface</h3>
+                <h3 className="text-sm font-semibold text-zinc-300">FRIDAY Synaptic Interface</h3>
                 <p className="text-xs text-zinc-500 font-mono mt-1 max-w-[280px]">
                   Start typing to execute backend instructions or query memories.
                 </p>
@@ -280,7 +280,7 @@ export const AssistantPage: React.FC = () => {
               <Input
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
-                placeholder={pendingConfirmation ? "Waiting for action confirmation..." : "Ask ORION ('run command echo hello', 'read file context.txt')..."}
+                placeholder={pendingConfirmation ? "Waiting for action confirmation..." : "Ask FRIDAY ('run command echo hello', 'read file context.txt')..."}
                 className="flex-1"
                 icon={<MessageSquare className="w-4 h-4 text-zinc-600" />}
                 disabled={streamingMessage !== null || pendingConfirmation !== null}

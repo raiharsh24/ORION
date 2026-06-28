@@ -14,7 +14,7 @@ export const ProjectsPage: React.FC = () => {
             Projects Workspace
           </h1>
           <p className="font-mono text-xs text-zinc-500 tracking-wider mt-1 uppercase">
-            Active repositories synchronized with ORION OS sandbox
+            Active repositories synchronized with FRIDAY OS sandbox
           </p>
         </div>
         <Button size="sm">
@@ -33,7 +33,7 @@ export const ProjectsPage: React.FC = () => {
               <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">ACTIVE</span>
               <span className="text-xs font-mono text-zinc-500">2.4 MB</span>
             </div>
-            <CardTitle className="text-xl mt-3">ORION Project</CardTitle>
+            <CardTitle className="text-xl mt-3">FRIDAY Project</CardTitle>
             <CardDescription className="line-clamp-2">The core foundation of the AI Operating System. Monorepo codebase setup.</CardDescription>
           </CardHeader>
           <CardContent className="mt-4 space-y-3.5">
@@ -78,7 +78,7 @@ export const ProjectsPage: React.FC = () => {
             <FolderGit className="w-5 h-5" />
           </div>
           <h3 className="text-sm font-semibold text-zinc-300 group-hover:text-zinc-100 transition-colors">Import Project</h3>
-          <p className="text-xs text-zinc-500 font-mono mt-1 max-w-[200px] leading-relaxed">Map local Git projects to let ORION index codebases.</p>
+          <p className="text-xs text-zinc-500 font-mono mt-1 max-w-[200px] leading-relaxed">Map local Git projects to let FRIDAY index codebases.</p>
         </div>
 
       </div>
