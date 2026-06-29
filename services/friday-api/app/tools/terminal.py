@@ -13,7 +13,7 @@ class TerminalTool(BaseTool):
     ALLOWED_COMMANDS = {
         "ls", "cat", "echo", "pwd", "env", "whoami", "date", "uname",
         "df", "du", "head", "tail", "grep", "find", "wc", "sort",
-        "uniq", "diff", "git", "npm", "node", "pip"
+        "uniq", "diff", "git", "npm", "node", "pip", "sleep"
     }
 
     BLOCKED_COMMANDS = {
@@ -80,27 +80,30 @@ class TerminalTool(BaseTool):
         except Exception as e:
             return f"Error: Command validation failed: {str(e)}"
 
+        proc = None
         try:
             sanitized_env = {
                 "PATH": "/usr/local/bin:/usr/bin:/bin",
                 "HOME": self.workspace_root
             }
 
+            import sys
+            kwargs = {}
+            if sys.platform != "win32":
+                kwargs["start_new_session"] = True
+
             proc = await asyncio.create_subprocess_exec(
                 *argv,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=sanitized_env
+                env=sanitized_env,
+                **kwargs
             )
             
             try:
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
             except asyncio.TimeoutError:
-                try:
-                    proc.kill()
-                    await proc.wait()
-                except Exception:
-                    pass
+                await self._terminate_proc(proc)
                 return "Error: Command execution timed out after 15 seconds."
 
             output = stdout.decode("utf-8", errors="replace")
@@ -115,5 +118,54 @@ class TerminalTool(BaseTool):
                 result.append(f"Command exited with code {proc.returncode}")
 
             return "\n".join(result)
+        except asyncio.CancelledError:
+            from loguru import logger
+            logger.info("TerminalTool task cancelled. Terminating subprocess...")
+            if proc:
+                await self._terminate_proc(proc)
+            raise
         except Exception as e:
             return f"Error: Command execution failed: {str(e)}"
+
+    async def _terminate_proc(self, proc) -> None:
+        if not proc:
+            return
+        import sys
+        import signal
+        from loguru import logger
+        try:
+            if sys.platform != "win32":
+                try:
+                    pgid = os.getpgid(proc.pid)
+                    logger.info(f"Terminating process group PGID={pgid}")
+                    os.killpg(pgid, signal.SIGTERM)
+                    await asyncio.wait_for(proc.wait(), timeout=2.0)
+                except ProcessLookupError:
+                    pass
+                except asyncio.TimeoutError:
+                    try:
+                        logger.warning(f"Process group PGID={pgid} did not exit cleanly. Sending SIGKILL.")
+                        os.killpg(pgid, signal.SIGKILL)
+                        await proc.wait()
+                    except ProcessLookupError:
+                        pass
+            else:
+                logger.info(f"Terminating Windows subprocess PID={proc.pid}")
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=2.0)
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+        except Exception as e:
+            logger.warning(f"Error terminating process group: {e}")
+            try:
+                proc.kill()
+                await proc.wait()
+            except Exception:
+                pass
+
+
+

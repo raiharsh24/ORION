@@ -1,5 +1,6 @@
 import uuid
 import time
+import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
@@ -138,7 +139,6 @@ class BaseAgent(ABC):
 
         try:
             if task.timeout and task.timeout > 0:
-                import asyncio
                 result = await asyncio.wait_for(
                     self.execute_task(task),
                     timeout=task.timeout
@@ -151,9 +151,13 @@ class BaseAgent(ABC):
             task.result = result
             self._tasks_completed += 1
             self._event_bus and self._event_bus.publish_background(AgentTaskCompleted(task.task_id, self._agent_id, success=True))
-            self._set_status(AgentStatus.IDLE)
-            self._current_task = None
             return result
+
+        except asyncio.CancelledError:
+            task.status = "CANCELLED"
+            task.completed_at = datetime.now(timezone.utc)
+            self._event_bus and self._event_bus.publish_background(AgentTaskCancelled(task.task_id, self._agent_id))
+            raise
 
         except TimeoutError:
             task.status = "TIMEOUT"
@@ -161,8 +165,6 @@ class BaseAgent(ABC):
             task.error = f"Task timed out after {task.timeout}s"
             self._tasks_failed += 1
             self._event_bus and self._event_bus.publish_background(AgentTaskTimeout(task.task_id, self._agent_id, task.timeout))
-            self._set_status(AgentStatus.IDLE)
-            self._current_task = None
             raise
 
         except Exception as e:
@@ -172,9 +174,11 @@ class BaseAgent(ABC):
             task.error = error_msg
             self._tasks_failed += 1
             self._event_bus and self._event_bus.publish_background(AgentTaskFailed(task.task_id, self._agent_id, error_msg))
+            raise
+
+        finally:
             self._set_status(AgentStatus.IDLE)
             self._current_task = None
-            raise
 
     async def cancel_task(self) -> None:
         if self._current_task:

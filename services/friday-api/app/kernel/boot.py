@@ -343,6 +343,10 @@ class BootManager:
             from app.voice.manager import VoiceSessionManager
             from app.voice.stt import GeminiSpeechProvider
             from app.api.routes import get_orchestrator
+            from app.voice.state import VoiceStateMachine
+            from app.voice.tts import TTSProviderRegistry, MockTTSProvider, TTSCoordinator
+            from app.voice.tts.edge import EdgeTTSProvider
+            from app.voice.output_manager import VoiceOutputManager
             
             # Resolve Gemini Adapter from llm_router for STT provider
             llm_router = self._container.get("llm_router")
@@ -350,13 +354,41 @@ class BootManager:
             
             speech_provider = GeminiSpeechProvider(gemini_adapter) if gemini_adapter else None
             
+            # Register new Voice Output components
+            voice_state_machine = VoiceStateMachine()
+            self._container.register_singleton("voice_state_machine", voice_state_machine)
+            kernel.module_registry.register_module("voice_state_machine", "1.0.0", [], voice_state_machine)
+
+            tts_registry = TTSProviderRegistry()
+            mock_tts = MockTTSProvider()
+            edge_tts_prov = EdgeTTSProvider()
+            tts_registry.register(mock_tts, is_default=False)
+            tts_registry.register(edge_tts_prov, is_default=True)
+            self._container.register_singleton("tts_provider_registry", tts_registry)
+            kernel.module_registry.register_module("tts_provider_registry", "1.0.0", [], tts_registry)
+
+            tts_coordinator = TTSCoordinator(tts_registry)
+            self._container.register_singleton("tts_coordinator", tts_coordinator)
+            kernel.module_registry.register_module("tts_coordinator", "1.0.0", ["tts_provider_registry"], tts_coordinator)
+
+            voice_output_manager = VoiceOutputManager(tts_coordinator)
+            self._container.register_singleton("voice_output_manager", voice_output_manager)
+            kernel.module_registry.register_module("voice_output_manager", "1.0.0", ["tts_coordinator"], voice_output_manager)
+            
             voice_manager = VoiceSessionManager(
                 event_bus=event_bus,
                 orchestrator_factory=get_orchestrator,
-                speech_provider=speech_provider
+                speech_provider=speech_provider,
+                state_machine=voice_state_machine,
+                tts_coordinator=tts_coordinator,
+                voice_output_manager=voice_output_manager
             )
             self._container.register_singleton("voice_manager", voice_manager)
-            kernel.module_registry.register_module("voice_manager", "1.0.0", ["event_bus", "llm_router"], voice_manager)
+            kernel.module_registry.register_module(
+                "voice_manager", "1.0.0", 
+                ["event_bus", "llm_router", "voice_state_machine", "tts_coordinator", "voice_output_manager"], 
+                voice_manager
+            )
             
             logger.info("Voice Subsystem registered in FridayServiceContainer.")
         except Exception as e:
