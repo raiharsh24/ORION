@@ -254,7 +254,7 @@ class FridayKernel:
         scheduler_svc = self.get_service("scheduler")
         llm_svc = self.get_service("llm_router")
         agents_svc = self.get_service("agent_coordinator")
-        runtime_svc = self.get_service("runtime_scheduler_bridge")
+        runtime_svc = self.get_service("workflow_runtime_manager")
         
         p_health = check_service_health("planner", planner_svc) if planner_svc else SubsystemHealth(name="planner", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         k_health = check_service_health("knowledge", knowledge_svc) if knowledge_svc else SubsystemHealth(name="knowledge", status=HealthStatus.UNKNOWN, message="Subsystem not registered")

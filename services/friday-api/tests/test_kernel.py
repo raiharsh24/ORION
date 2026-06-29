@@ -188,6 +188,9 @@ async def test_kernel_boot_shutdown_restart():
     assert h.memory.status == HealthStatus.HEALTHY
     assert h.desktop.status == HealthStatus.HEALTHY
     assert h.mission.status == HealthStatus.HEALTHY
+    assert h.workflow_runtime.status == HealthStatus.HEALTHY
+    assert h.workflow_runtime.message == "WorkflowRuntimeManager operational."
+    assert "active_runs" in h.workflow_runtime.details
     
     # Inject a failing service and verify health updates
     kernel.register_service("planner", MockHealthService("ERROR"))

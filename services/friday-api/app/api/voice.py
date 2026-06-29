@@ -8,6 +8,9 @@ from app.voice.vad import EnergyThresholdVAD
 from app.voice.wakeword import ThresholdWakeWordEngine
 from app.voice.events import WakeWordDetected, VoiceStarted, VoiceEnded
 
+MAX_RECORDING_DURATION_SECONDS = 15.0
+MAX_AUDIO_BUFFER_SIZE_BYTES = 1024 * 1024  # 1MB
+
 router = APIRouter()
 
 @router.websocket("/ws/voice")
@@ -20,9 +23,13 @@ async def voice_websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("Voice WebSocket connection established.")
     
-    # Resolve Kernel and EventBus services
+    # Resolve Kernel, EventBus, and VoiceOutputManager services
     kernel = FridayKernel.get_instance()
     event_bus = kernel.get_service("event_bus")
+    voice_output_manager = kernel.get_service("voice_output_manager")
+    if voice_output_manager:
+        from app.voice.transport import WebSocketAudioTransport
+        voice_output_manager.set_transport(WebSocketAudioTransport(websocket))
     
     # Initialize VAD and Wake Word Engines
     wakeword_engine = ThresholdWakeWordEngine()
@@ -71,6 +78,8 @@ async def voice_websocket_endpoint(websocket: WebSocket):
                 
                 # Test trigger interface
                 if text_cmd == "TRIGGER_WAKE_WORD":
+                    if voice_output_manager:
+                        await voice_output_manager.cancel_streaming()
                     wakeword_engine.trigger_manually()
                     # Trigger immediately by buffering an empty evaluations frame
                     audio_buffer += b"\x00" * FRAME_SIZE
@@ -120,16 +129,29 @@ async def voice_websocket_endpoint(websocket: WebSocket):
                     is_speech = vad_engine.process_frame(frame, FRAME_MS)
                     
                     if is_speech:
+                        if voice_output_manager:
+                            await voice_output_manager.cancel_streaming()
                         speech_started_detected = True
                         
                     # Accumulate speech samples once speech activity starts
                     if speech_started_detected:
                         session_audio_buffer += frame
                         
-                    # End of speech transition (VAD falls silent after user starts talking)
-                    if speech_started_detected and not is_speech:
+                    limit_exceeded = False
+                    if speech_started_detected:
+                        current_duration = asyncio.get_event_loop().time() - voice_start_time
+                        current_size = len(session_audio_buffer)
+                        if current_duration > MAX_RECORDING_DURATION_SECONDS:
+                            limit_exceeded = True
+                            logger.warning(f"Voice session buffer duration limit exceeded ({current_duration:.2f}s > {MAX_RECORDING_DURATION_SECONDS}s). Gracefully finalizing.")
+                        elif current_size > MAX_AUDIO_BUFFER_SIZE_BYTES:
+                            limit_exceeded = True
+                            logger.warning(f"Voice session buffer size limit exceeded ({current_size} bytes > {MAX_AUDIO_BUFFER_SIZE_BYTES} bytes). Gracefully finalizing.")
+
+                    # End of speech transition (VAD falls silent or limit exceeded after user starts talking)
+                    if speech_started_detected and (not is_speech or limit_exceeded):
                         duration = asyncio.get_event_loop().time() - voice_start_time
-                        logger.info(f"VAD: Speech completed. Duration: {duration:.2f}s")
+                        logger.info(f"VAD: Speech completed. Duration: {duration:.2f}s (limit exceeded: {limit_exceeded})")
                         
                         # Broadcast VoiceEnded
                         if event_bus:
@@ -193,6 +215,8 @@ async def voice_websocket_endpoint(websocket: WebSocket):
         session_audio_buffer = b""
         wakeword_engine.reset()
         vad_engine.reset()
+        if voice_output_manager:
+            await voice_output_manager.shutdown()
         
         # Publish VoiceEnded if connection is terminated during an active session
         if session_state == "LISTENING" and session_id:

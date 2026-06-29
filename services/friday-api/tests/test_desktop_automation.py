@@ -76,3 +76,23 @@ async def test_desktop_automation_queue_lifecycle():
     # Teardown
     await automation.shutdown()
     kernel.reset_instance()
+
+
+@pytest.mark.anyio
+async def test_desktop_automation_double_initialize():
+    automation = DesktopAutomationService()
+    await automation.initialize()
+    task1 = automation._loop_task
+    assert task1 is not None
+    assert not task1.done()
+    
+    # Call initialize again
+    await automation.initialize()
+    task2 = automation._loop_task
+    # Verify it returns the same task and doesn't create a new one
+    assert task1 is task2
+    
+    # Teardown
+    await automation.shutdown()
+    assert task1.cancelled()
+
