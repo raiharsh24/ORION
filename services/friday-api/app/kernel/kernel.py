@@ -256,6 +256,35 @@ class FridayKernel:
         agents_svc = self.get_service("agent_coordinator")
         runtime_svc = self.get_service("workflow_runtime_manager")
         
+        intent_analyzer_svc = self.get_service("intent_analyzer")
+        strategy_manager_svc = self.get_service("strategy_manager")
+        extractor_registry_svc = self.get_service("extractor_registry")
+        context_ranker_svc = self.get_service("context_ranker")
+        token_allocator_svc = self.get_service("token_allocator")
+        context_validator_svc = self.get_service("context_validator")
+        context_compressor_svc = self.get_service("context_compressor")
+        prompt_assembler_svc = self.get_service("prompt_assembler")
+        pipeline_orchestrator_svc = self.get_service("pipeline_orchestrator")
+        universal_tool_registry_svc = self.get_service("universal_tool_registry")
+        tool_selection_engine_svc = self.get_service("tool_selection_engine")
+        tool_execution_engine_svc = self.get_service("tool_execution_engine")
+        workflow_engine_v2_svc = self.get_service("workflow_engine_v2")
+        mission_engine_v2_svc = self.get_service("mission_engine_v2")
+        capability_registry_v2_svc = self.get_service("capability_registry_v2")
+        capability_resolver_svc = self.get_service("capability_resolver")
+        plugin_runtime_svc = self.get_service("plugin_runtime")
+        package_manager_svc = self.get_service("package_manager")
+        plugin_security_svc = self.get_service("plugin_security")
+        agent_framework_svc = self.get_service("agent_manager")
+        blackboard_svc = self.get_service("blackboard")
+        coordinator_svc = self.get_service("coordinator")
+        delegation_mgr_svc = self.get_service("delegation_manager")
+        persistence_mgr_svc = self.get_service("persistence_manager")
+        recovery_mgr_svc = self.get_service("recovery_manager")
+        metrics_svc = self.get_service("metrics_collector")
+        planning_svc = self.get_service("planning_engine")
+        runtime_svc = self.get_service("mission_runtime")
+        
         p_health = check_service_health("planner", planner_svc) if planner_svc else SubsystemHealth(name="planner", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         k_health = check_service_health("knowledge", knowledge_svc) if knowledge_svc else SubsystemHealth(name="knowledge", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         memory_health = check_service_health("memory", memory_svc) if memory_svc else SubsystemHealth(name="memory", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
@@ -275,8 +304,41 @@ class FridayKernel:
         l_health = check_service_health("llm", llm_svc) if llm_svc else SubsystemHealth(name="llm", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         a_health = check_service_health("agents", agents_svc) if agents_svc else SubsystemHealth(name="agents", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         r_health = check_service_health("workflow_runtime", runtime_svc) if runtime_svc else SubsystemHealth(name="workflow_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        plugin_reg_svc = self.get_service("plugin_registry")
+        plugin_reg_health = check_service_health("plugin_registry", plugin_reg_svc) if plugin_reg_svc else SubsystemHealth(name="plugin_registry", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        plugin_loader_svc = self.get_service("plugin_loader")
+        plugin_loader_health = check_service_health("plugin_loader", plugin_loader_svc) if plugin_loader_svc else SubsystemHealth(name="plugin_loader", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         
-        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, mi_health.status, a_health.status, r_health.status]
+        ia_health = check_service_health("intent_analyzer", intent_analyzer_svc) if intent_analyzer_svc else SubsystemHealth(name="intent_analyzer", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        sm_health = check_service_health("strategy_manager", strategy_manager_svc) if strategy_manager_svc else SubsystemHealth(name="strategy_manager", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        er_health = check_service_health("extractor_registry", extractor_registry_svc) if extractor_registry_svc else SubsystemHealth(name="extractor_registry", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        cr_health = check_service_health("context_ranker", context_ranker_svc) if context_ranker_svc else SubsystemHealth(name="context_ranker", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        ta_health = check_service_health("token_allocator", token_allocator_svc) if token_allocator_svc else SubsystemHealth(name="token_allocator", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        cv_health = check_service_health("context_validator", context_validator_svc) if context_validator_svc else SubsystemHealth(name="context_validator", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        cc_health = check_service_health("context_compressor", context_compressor_svc) if context_compressor_svc else SubsystemHealth(name="context_compressor", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        pa_health = check_service_health("prompt_assembler", prompt_assembler_svc) if prompt_assembler_svc else SubsystemHealth(name="prompt_assembler", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        po_health = check_service_health("pipeline_orchestrator", pipeline_orchestrator_svc) if pipeline_orchestrator_svc else SubsystemHealth(name="pipeline_orchestrator", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        utr_health = check_service_health("universal_tool_registry", universal_tool_registry_svc) if universal_tool_registry_svc else SubsystemHealth(name="universal_tool_registry", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        tse_health = check_service_health("tool_selection_engine", tool_selection_engine_svc) if tool_selection_engine_svc else SubsystemHealth(name="tool_selection_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        tee_health = check_service_health("tool_execution_engine", tool_execution_engine_svc) if tool_execution_engine_svc else SubsystemHealth(name="tool_execution_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        we_health = check_service_health("workflow_engine_v2", workflow_engine_v2_svc) if workflow_engine_v2_svc else SubsystemHealth(name="workflow_engine_v2", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        me_health = check_service_health("mission_engine_v2", mission_engine_v2_svc) if mission_engine_v2_svc else SubsystemHealth(name="mission_engine_v2", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        cr2_health = check_service_health("capability_registry", capability_registry_v2_svc) if capability_registry_v2_svc else SubsystemHealth(name="capability_registry", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        cres_health = check_service_health("capability_resolver", capability_resolver_svc) if capability_resolver_svc else SubsystemHealth(name="capability_resolver", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        pr_health = check_service_health("plugin_runtime", plugin_runtime_svc) if plugin_runtime_svc else SubsystemHealth(name="plugin_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        pm_health = check_service_health("package_manager", package_manager_svc) if package_manager_svc else SubsystemHealth(name="plugin_marketplace", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        ps_health = check_service_health("plugin_security", plugin_security_svc) if plugin_security_svc else SubsystemHealth(name="plugin_security", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        af_health = check_service_health("agent_framework", agent_framework_svc) if agent_framework_svc else SubsystemHealth(name="agent_framework", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        b_health = check_service_health("blackboard", blackboard_svc) if blackboard_svc else SubsystemHealth(name="blackboard", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        c_health = check_service_health("coordinator", coordinator_svc) if coordinator_svc else SubsystemHealth(name="coordinator", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        d_health2 = check_service_health("delegation_manager", delegation_mgr_svc) if delegation_mgr_svc else SubsystemHealth(name="delegation_manager", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        p_health2 = check_service_health("persistence_manager", persistence_mgr_svc) if persistence_mgr_svc else SubsystemHealth(name="persistence_manager", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        r_health2 = check_service_health("recovery_manager", recovery_mgr_svc) if recovery_mgr_svc else SubsystemHealth(name="recovery_manager", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        m_health = check_service_health("metrics_collector", metrics_svc) if metrics_svc else SubsystemHealth(name="metrics_collector", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        pl_health = check_service_health("planning_engine", planning_svc) if planning_svc else SubsystemHealth(name="planning_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        rt_health = check_service_health("mission_runtime", runtime_svc) if runtime_svc else SubsystemHealth(name="mission_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        
+        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, w_health.status, mi_health.status, s_health.status, l_health.status, a_health.status, r_health.status, plugin_reg_health.status, plugin_loader_health.status, ia_health.status, sm_health.status, er_health.status, cr_health.status, ta_health.status, cv_health.status, cc_health.status, pa_health.status, po_health.status, utr_health.status, tse_health.status, tee_health.status, we_health.status, me_health.status, cr2_health.status, cres_health.status, pr_health.status, pm_health.status, ps_health.status, af_health.status, b_health.status, c_health.status, d_health2.status, p_health2.status, r_health2.status, m_health.status, pl_health.status, rt_health.status]
         if HealthStatus.ERROR in statuses or self._state == KernelState.ERROR:
             overall = HealthStatus.ERROR
         elif HealthStatus.WARNING in statuses:
@@ -297,6 +359,36 @@ class FridayKernel:
         self._health_monitor.report_health("llm", l_health.status, l_health.message)
         self._health_monitor.report_health("agents", a_health.status, a_health.message)
         self._health_monitor.report_health("workflow_runtime", r_health.status, r_health.message)
+        self._health_monitor.report_health("plugin_registry", plugin_reg_health.status, plugin_reg_health.message)
+        self._health_monitor.report_health("plugin_loader", plugin_loader_health.status, plugin_loader_health.message)
+        self._health_monitor.report_health("intent_analyzer", ia_health.status, ia_health.message)
+        self._health_monitor.report_health("strategy_manager", sm_health.status, sm_health.message)
+        self._health_monitor.report_health("extractor_registry", er_health.status, er_health.message)
+        self._health_monitor.report_health("context_ranker", cr_health.status, cr_health.message)
+        self._health_monitor.report_health("token_allocator", ta_health.status, ta_health.message)
+        self._health_monitor.report_health("context_validator", cv_health.status, cv_health.message)
+        self._health_monitor.report_health("context_compressor", cc_health.status, cc_health.message)
+        self._health_monitor.report_health("prompt_assembler", pa_health.status, pa_health.message)
+        self._health_monitor.report_health("pipeline_orchestrator", po_health.status, po_health.message)
+        self._health_monitor.report_health("universal_tool_registry", utr_health.status, utr_health.message)
+        self._health_monitor.report_health("tool_selection_engine", tse_health.status, tse_health.message)
+        self._health_monitor.report_health("tool_execution_engine", tee_health.status, tee_health.message)
+        self._health_monitor.report_health("workflow_engine_v2", we_health.status, we_health.message)
+        self._health_monitor.report_health("mission_engine_v2", me_health.status, me_health.message)
+        self._health_monitor.report_health("capability_registry_v2", cr2_health.status, cr2_health.message)
+        self._health_monitor.report_health("capability_resolver", cres_health.status, cres_health.message)
+        self._health_monitor.report_health("plugin_runtime", pr_health.status, pr_health.message)
+        self._health_monitor.report_health("plugin_marketplace", pm_health.status, pm_health.message)
+        self._health_monitor.report_health("plugin_security", ps_health.status, ps_health.message)
+        self._health_monitor.report_health("agent_framework", af_health.status, af_health.message)
+        self._health_monitor.report_health("blackboard", b_health.status, b_health.message)
+        self._health_monitor.report_health("coordinator", c_health.status, c_health.message)
+        self._health_monitor.report_health("delegation_manager", d_health2.status, d_health2.message)
+        self._health_monitor.report_health("persistence_manager", p_health2.status, p_health2.message)
+        self._health_monitor.report_health("recovery_manager", r_health2.status, r_health2.message)
+        self._health_monitor.report_health("metrics_collector", m_health.status, m_health.message)
+        self._health_monitor.report_health("planning_engine", pl_health.status, pl_health.message)
+        self._health_monitor.report_health("mission_runtime", rt_health.status, rt_health.message)
             
         return KernelHealth(
             kernel_status=overall,
@@ -310,6 +402,36 @@ class FridayKernel:
             llm=l_health,
             agents=a_health,
             workflow_runtime=r_health,
+            intent_analyzer=ia_health,
+            strategy_manager=sm_health,
+            extractor_registry=er_health,
+            context_ranker=cr_health,
+            token_allocator=ta_health,
+            context_validator=cv_health,
+            context_compressor=cc_health,
+            prompt_assembler=pa_health,
+            pipeline_orchestrator=po_health,
+            universal_tool_registry=utr_health,
+            tool_selection_engine=tse_health,
+            tool_execution_engine=tee_health,
+            workflow_engine_v2=we_health,
+            mission_engine_v2=me_health,
+            capability_registry_v2=cr2_health,
+            capability_resolver=cres_health,
+            plugin_registry=plugin_reg_health,
+            plugin_loader=plugin_loader_health,
+            plugin_runtime=pr_health,
+            plugin_marketplace=pm_health,
+            plugin_security=ps_health,
+            agent_framework=af_health,
+            blackboard=b_health,
+            coordinator=c_health,
+            delegation_manager=d_health2,
+            persistence_manager=p_health2,
+            recovery_manager=r_health2,
+            metrics_collector=m_health,
+            planning_engine=pl_health,
+            mission_runtime=rt_health,
         )
 
     def state(self) -> KernelState:

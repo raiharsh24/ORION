@@ -12,16 +12,13 @@ from app.friday.vectordb import VectorDB
 from app.memory.embeddings import EmbeddingsManager
 from app.friday.indexer import DocumentIndexer
 from app.friday.retrieval import RetrievalEngine
-from app.capabilities import CapabilityRegistry
 from app.desktop.controller import DesktopController
 
 # Share singletons globally to maintain state
 memory_store = MemoryEngine()
 tool_registry = ToolRegistry()
-capability_registry = CapabilityRegistry()
 
 desktop_controller = DesktopController()
-capability_registry.register(desktop_controller)
 
 # Configure workspace path discovery
 workspace_root = "/home/warlock/ORION"
