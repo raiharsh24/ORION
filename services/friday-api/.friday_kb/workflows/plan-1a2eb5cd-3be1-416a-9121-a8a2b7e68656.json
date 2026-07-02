@@ -1,0 +1,95 @@
+{
+  "workflow_id": "plan-1a2eb5cd-3be1-416a-9121-a8a2b7e68656",
+  "name": "Execute file system operations for: 'write file '/tmp/tmpefeux5ac' with 'new con",
+  "description": "",
+  "steps": {
+    "step_0": {
+      "step_id": "step_0",
+      "name": "Step 0",
+      "step_type": "tool",
+      "input": {
+        "tool_name": "filesystem",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmpefeux5ac",
+          "content": "new content"
+        }
+      },
+      "depends_on": [],
+      "retry_policy": {
+        "max_retries": 0,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "backoff_factor": 2.0,
+        "retryable_errors": []
+      },
+      "timeout": null,
+      "status": "COMPLETED",
+      "result": {
+        "result": "File written successfully to /tmp/tmpefeux5ac.",
+        "tool": "filesystem"
+      },
+      "error": null,
+      "started_at": "2026-06-30T06:47:06.850601Z",
+      "completed_at": "2026-06-30T06:47:06.852490Z",
+      "retry_count": 0,
+      "parallel_group": null
+    }
+  },
+  "status": "COMPLETED",
+  "created_at": "2026-06-30T06:47:06.848636Z",
+  "updated_at": "2026-06-30T06:47:06.853709Z",
+  "started_at": "2026-06-30T06:47:06.849557Z",
+  "completed_at": "2026-06-30T06:47:06.853694Z",
+  "variables": {
+    "intent": "Filesystem Action",
+    "priority": "medium",
+    "confidence": 0.95,
+    "step_0.output": {
+      "result": "File written successfully to /tmp/tmpefeux5ac.",
+      "tool": "filesystem"
+    }
+  },
+  "schedule": null,
+  "error": null,
+  "metadata": {
+    "capabilities": [
+      "Desktop"
+    ],
+    "memory_required": false,
+    "tool_required": true,
+    "clarification_required": false,
+    "tool_name": "filesystem",
+    "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpefeux5ac' with 'new content''"
+  },
+  "source_plan": {
+    "plan_id": "1a2eb5cd-3be1-416a-9121-a8a2b7e68656",
+    "goal": "Execute file system operations for: 'write file '/tmp/tmpefeux5ac' with 'new content''",
+    "steps": [
+      {
+        "step": 1,
+        "action": "filesystem_op",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmpefeux5ac",
+          "content": "new content"
+        }
+      }
+    ],
+    "variables": {
+      "intent": "Filesystem Action",
+      "priority": "medium",
+      "confidence": 0.95
+    },
+    "metadata": {
+      "capabilities": [
+        "Desktop"
+      ],
+      "memory_required": false,
+      "tool_required": true,
+      "clarification_required": false,
+      "tool_name": "filesystem",
+      "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmpefeux5ac' with 'new content''"
+    }
+  }
+}

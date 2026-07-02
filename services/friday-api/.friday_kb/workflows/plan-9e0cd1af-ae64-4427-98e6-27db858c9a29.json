@@ -1,0 +1,95 @@
+{
+  "workflow_id": "plan-9e0cd1af-ae64-4427-98e6-27db858c9a29",
+  "name": "Execute file system operations for: 'write file '/tmp/tmp8xlwm3c0' with 'new con",
+  "description": "",
+  "steps": {
+    "step_0": {
+      "step_id": "step_0",
+      "name": "Step 0",
+      "step_type": "tool",
+      "input": {
+        "tool_name": "filesystem",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmp8xlwm3c0",
+          "content": "new content"
+        }
+      },
+      "depends_on": [],
+      "retry_policy": {
+        "max_retries": 0,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "backoff_factor": 2.0,
+        "retryable_errors": []
+      },
+      "timeout": null,
+      "status": "COMPLETED",
+      "result": {
+        "result": "File written successfully to /tmp/tmp8xlwm3c0.",
+        "tool": "filesystem"
+      },
+      "error": null,
+      "started_at": "2026-06-30T06:12:17.245237Z",
+      "completed_at": "2026-06-30T06:12:17.246661Z",
+      "retry_count": 0,
+      "parallel_group": null
+    }
+  },
+  "status": "COMPLETED",
+  "created_at": "2026-06-30T06:12:17.242583Z",
+  "updated_at": "2026-06-30T06:12:17.247571Z",
+  "started_at": "2026-06-30T06:12:17.244142Z",
+  "completed_at": "2026-06-30T06:12:17.247559Z",
+  "variables": {
+    "intent": "Filesystem Action",
+    "priority": "medium",
+    "confidence": 0.95,
+    "step_0.output": {
+      "result": "File written successfully to /tmp/tmp8xlwm3c0.",
+      "tool": "filesystem"
+    }
+  },
+  "schedule": null,
+  "error": null,
+  "metadata": {
+    "capabilities": [
+      "Desktop"
+    ],
+    "memory_required": false,
+    "tool_required": true,
+    "clarification_required": false,
+    "tool_name": "filesystem",
+    "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmp8xlwm3c0' with 'new content''"
+  },
+  "source_plan": {
+    "plan_id": "9e0cd1af-ae64-4427-98e6-27db858c9a29",
+    "goal": "Execute file system operations for: 'write file '/tmp/tmp8xlwm3c0' with 'new content''",
+    "steps": [
+      {
+        "step": 1,
+        "action": "filesystem_op",
+        "args": {
+          "op": "write",
+          "path": "/tmp/tmp8xlwm3c0",
+          "content": "new content"
+        }
+      }
+    ],
+    "variables": {
+      "intent": "Filesystem Action",
+      "priority": "medium",
+      "confidence": 0.95
+    },
+    "metadata": {
+      "capabilities": [
+        "Desktop"
+      ],
+      "memory_required": false,
+      "tool_required": true,
+      "clarification_required": false,
+      "tool_name": "filesystem",
+      "reasoning": "Planned action: Execute file system operations for: 'write file '/tmp/tmp8xlwm3c0' with 'new content''"
+    }
+  }
+}

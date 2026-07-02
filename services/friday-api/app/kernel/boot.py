@@ -61,6 +61,133 @@ class BootManager:
         )
         logger.info("Event Bus registered in FridayServiceContainer.")
         
+        # Step 3a: Initialize Phase 3 Intelligence Services
+        logger.info("Boot Step 3a: Initialize Phase 3 Intelligence Services...")
+        
+        from app.intent.analyzer import RuleBasedIntentAnalyzer
+        from app.context.manager import StrategyManager
+        from app.extraction.registry import ExtractorRegistry
+        from app.ranking.ranker import ContextRanker
+        from app.budget.allocator import AdaptiveTokenBudgetAllocator
+        from app.validation.validator import ContextValidator
+        from app.compression.compressor import ContextCompressor
+        from app.assembly.assembler import PromptAssembler
+        
+        # Register default extractors
+        from app.extraction.extractors import (
+            MemoryExtractor, KnowledgeExtractor, WorkflowExtractor,
+            DesktopExtractor, BrowserExtractor, TerminalExtractor,
+            MissionExtractor, VoiceExtractor, SystemStateExtractor,
+        )
+        
+        intent_analyzer = RuleBasedIntentAnalyzer(event_bus=event_bus)
+        self._container.register_singleton("intent_analyzer", intent_analyzer)
+        kernel.module_registry.register_module("intent_analyzer", "1.0.0", ["event_bus"], intent_analyzer)
+        kernel.capability_registry.register_capability(
+            name="IntentAnalysis",
+            module_name="intent_analyzer",
+            description="Deterministic rule-based intent classification for user queries"
+        )
+        
+        strategy_manager = StrategyManager(event_bus=event_bus)
+        self._container.register_singleton("strategy_manager", strategy_manager)
+        kernel.module_registry.register_module("strategy_manager", "1.0.0", ["event_bus"], strategy_manager)
+        kernel.capability_registry.register_capability(
+            name="StrategyManagement",
+            module_name="strategy_manager",
+            description="Context-aware strategy selection and configuration management"
+        )
+        
+        extractor_registry = ExtractorRegistry(event_bus=event_bus)
+        extractor_registry.register(MemoryExtractor())
+        extractor_registry.register(KnowledgeExtractor())
+        extractor_registry.register(WorkflowExtractor())
+        extractor_registry.register(DesktopExtractor())
+        extractor_registry.register(BrowserExtractor())
+        extractor_registry.register(TerminalExtractor())
+        extractor_registry.register(MissionExtractor())
+        extractor_registry.register(VoiceExtractor())
+        extractor_registry.register(SystemStateExtractor())
+        self._container.register_singleton("extractor_registry", extractor_registry)
+        kernel.module_registry.register_module("extractor_registry", "1.0.0", ["event_bus"], extractor_registry)
+        kernel.capability_registry.register_capability(
+            name="ContextExtraction",
+            module_name="extractor_registry",
+            description="Multi-source context extraction from memory, knowledge, desktop, browser, terminal, missions, and workflow"
+        )
+        
+        context_ranker = ContextRanker(event_bus=event_bus)
+        self._container.register_singleton("context_ranker", context_ranker)
+        kernel.module_registry.register_module("context_ranker", "1.0.0", ["event_bus"], context_ranker)
+        kernel.capability_registry.register_capability(
+            name="ContextRanking",
+            module_name="context_ranker",
+            description="Multi-dimensional relevance scoring and ranking of extracted context blocks"
+        )
+        
+        token_allocator = AdaptiveTokenBudgetAllocator(event_bus=event_bus)
+        self._container.register_singleton("token_allocator", token_allocator)
+        kernel.module_registry.register_module("token_allocator", "1.0.0", ["event_bus"], token_allocator)
+        kernel.capability_registry.register_capability(
+            name="TokenBudgetAllocation",
+            module_name="token_allocator",
+            description="Adaptive token budget allocation across context blocks with provider-aware limits"
+        )
+        
+        context_validator = ContextValidator(event_bus=event_bus)
+        self._container.register_singleton("context_validator", context_validator)
+        kernel.module_registry.register_module("context_validator", "1.0.0", ["event_bus"], context_validator)
+        kernel.capability_registry.register_capability(
+            name="ContextValidation",
+            module_name="context_validator",
+            description="Content quality and relevance validation of allocated context blocks"
+        )
+        
+        context_compressor = ContextCompressor(event_bus=event_bus)
+        self._container.register_singleton("context_compressor", context_compressor)
+        kernel.module_registry.register_module("context_compressor", "1.0.0", ["event_bus"], context_compressor)
+        kernel.capability_registry.register_capability(
+            name="ContextCompression",
+            module_name="context_compressor",
+            description="Multi-policy context compression including light trimming, aggressive summarization, and semantic deduplication"
+        )
+        
+        prompt_assembler = PromptAssembler(event_bus=event_bus)
+        self._container.register_singleton("prompt_assembler", prompt_assembler)
+        kernel.module_registry.register_module("prompt_assembler", "1.0.0", ["event_bus"], prompt_assembler)
+        kernel.capability_registry.register_capability(
+            name="PromptAssembly",
+            module_name="prompt_assembler",
+            description="Structured prompt assembly with provider-specific formatting, section ordering, and token tracking"
+        )
+        
+        logger.info("Phase 3 Intelligence Services registered in FridayServiceContainer.")
+        
+        # Step 3b: Initialize Phase 5 Intelligence Pipeline Orchestrator
+        logger.info("Boot Step 3b: Initialize Phase 5 Intelligence Pipeline Orchestrator...")
+        from app.intelligence.pipeline import IntelligencePipeline
+        from app.cache.cache import ContextCache
+        
+        pipeline_orchestrator = IntelligencePipeline(event_bus=event_bus)
+        self._container.register_singleton("pipeline_orchestrator", pipeline_orchestrator)
+        kernel.module_registry.register_module("pipeline_orchestrator", "1.0.0", ["event_bus"], pipeline_orchestrator)
+        kernel.capability_registry.register_capability(
+            name="IntelligencePipeline",
+            module_name="pipeline_orchestrator",
+            description="Deterministic 8-stage context intelligence pipeline: intent analysis through prompt assembly"
+        )
+        
+        context_cache = ContextCache(event_bus=event_bus)
+        self._container.register_singleton("context_cache", context_cache)
+        kernel.module_registry.register_module("context_cache", "1.0.0", ["event_bus"], context_cache)
+        kernel.capability_registry.register_capability(
+            name="ContextCache",
+            module_name="context_cache",
+            description="Multi-level context cache with TTL, LRU eviction, pinning, and per-extractor level mapping"
+        )
+        
+        logger.info("Phase 5 Pipeline Orchestrator and Context Cache registered in FridayServiceContainer.")
+        
         # Step 4: Initialize Memory Engine
         logger.info("Boot Step 4: Initialize Memory Engine...")
         from app.core.dependencies import memory_store
@@ -136,6 +263,487 @@ class BootManager:
         self._container.register_singleton("tool_engine", tool_engine)
         kernel.module_registry.register_module("tool_engine", "1.0.0", ["event_bus", "tool_registry"], tool_engine)
         logger.info("Tool Engine registered in FridayServiceContainer.")
+        
+        # Step 7d: Initialize Phase 6 Universal Tool Registry
+        logger.info("Boot Step 7d: Initialize Phase 6 Universal Tool Registry...")
+        from app.tools.registry import ToolRegistry as UniversalToolRegistry
+        from app.tool_selection.selector import ToolSelectionEngine
+        from app.tool_execution.executor import ToolExecutionEngine
+        from app.workflow_engine.executor import WorkflowExecutor as WorkflowEngineV2
+        from app.mission_engine.executor import MissionExecutor
+        from app.mission_engine.mission import MissionStore
+        from app.mission_engine.checkpoint import CheckpointManager
+        from app.mission_engine.planner import MissionPlanner
+        from app.capabilities.registry import CapabilityRegistry as CapabilityRegistryV2
+        from app.capabilities.resolver import CapabilityResolver
+        from app.capabilities.defaults import DEFAULT_CAPABILITIES
+        
+        universal_tool_registry = UniversalToolRegistry(event_bus=event_bus)
+        self._container.register_singleton("universal_tool_registry", universal_tool_registry)
+        kernel.module_registry.register_module("universal_tool_registry", "1.0.0", ["event_bus"], universal_tool_registry)
+        kernel.capability_registry.register_capability(
+            name="UniversalToolRegistry",
+            module_name="universal_tool_registry",
+            description="Phase 6 universal tool registry with metadata, discovery, health, dependency graph, and permissions"
+        )
+        logger.info("Universal Tool Registry registered in FridayServiceContainer.")
+        
+        # Step 7e: Initialize Tool Selection Engine
+        logger.info("Boot Step 7e: Initialize Tool Selection Engine...")
+        tool_selection_engine = ToolSelectionEngine(
+            tool_registry=universal_tool_registry,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("tool_selection_engine", tool_selection_engine)
+        kernel.module_registry.register_module("tool_selection_engine", "1.0.0", ["event_bus", "universal_tool_registry"], tool_selection_engine)
+        kernel.capability_registry.register_capability(
+            name="ToolSelection",
+            module_name="tool_selection_engine",
+            description="Deterministic tool selection engine with 7 rule filters and 10 weighted scoring dimensions"
+        )
+        logger.info("Tool Selection Engine registered in FridayServiceContainer.")
+        
+        # Step 7f: Initialize Tool Execution Engine
+        logger.info("Boot Step 7f: Initialize Tool Execution Engine...")
+        legacy_tool_registry = self._container.get("tool_registry")
+        tool_execution_engine = ToolExecutionEngine(
+            legacy_tool_registry=legacy_tool_registry,
+            universal_tool_registry=universal_tool_registry,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("tool_execution_engine", tool_execution_engine)
+        kernel.module_registry.register_module(
+            "tool_execution_engine", "1.0.0",
+            ["event_bus", "tool_registry", "universal_tool_registry"],
+            tool_execution_engine,
+        )
+        kernel.capability_registry.register_capability(
+            name="ToolExecution",
+            module_name="tool_execution_engine",
+            description="Tool execution engine with retry, timeout, cancellation, and dual-registry bridge"
+        )
+        logger.info("Tool Execution Engine registered in FridayServiceContainer.")
+        
+        # Step 7g: Initialize Workflow Engine V2
+        logger.info("Boot Step 7g: Initialize Workflow Engine V2...")
+        workflow_engine_v2 = WorkflowEngineV2(
+            tool_execution_engine=tool_execution_engine,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("workflow_engine_v2", workflow_engine_v2)
+        kernel.module_registry.register_module(
+            "workflow_engine_v2", "1.0.0",
+            ["event_bus", "tool_execution_engine"],
+            workflow_engine_v2,
+        )
+        kernel.capability_registry.register_capability(
+            name="WorkflowEngineV2",
+            module_name="workflow_engine_v2",
+            description="Phase 6 DAG-based workflow orchestration engine reusing ToolExecutionEngine"
+        )
+        logger.info("Workflow Engine V2 registered in FridayServiceContainer.")
+        
+        # Step 7h: Initialize Mission Engine V2
+        logger.info("Boot Step 7h: Initialize Mission Engine V2...")
+        mission_store = MissionStore()
+        checkpoint_manager = CheckpointManager()
+        mission_planner = MissionPlanner(mission_store)
+        mission_engine_v2 = MissionExecutor(
+            workflow_executor=workflow_engine_v2,
+            store=mission_store,
+            checkpoint_manager=checkpoint_manager,
+            planner=mission_planner,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("mission_engine_v2", mission_engine_v2)
+        kernel.module_registry.register_module(
+            "mission_engine_v2", "1.0.0",
+            ["event_bus", "workflow_engine_v2"],
+            mission_engine_v2,
+        )
+        kernel.capability_registry.register_capability(
+            name="MissionEngineV2",
+            module_name="mission_engine_v2",
+            description="Phase 6 mission execution engine with pause/resume, checkpoint recovery, and background execution"
+        )
+        logger.info("Mission Engine V2 registered in FridayServiceContainer.")
+        
+        # Step 7i: Initialize Capability Registry V2
+        logger.info("Boot Step 7i: Initialize Capability Registry V2...")
+        capability_registry_v2 = CapabilityRegistryV2(event_bus=event_bus)
+        for cap in DEFAULT_CAPABILITIES():
+            capability_registry_v2.register(cap)
+        self._container.register_singleton("capability_registry_v2", capability_registry_v2)
+        kernel.module_registry.register_module(
+            "capability_registry_v2", "1.0.0",
+            ["event_bus"],
+            capability_registry_v2,
+        )
+        kernel.capability_registry.register_capability(
+            name="CapabilityRegistryV2",
+            module_name="capability_registry_v2",
+            description="Phase 6 capability registry with CRUD, alias resolution, search, health, permissions, and dependency graph"
+        )
+        logger.info("Capability Registry V2 registered in FridayServiceContainer.")
+        
+        # Step 7j: Initialize Capability Resolver
+        logger.info("Boot Step 7j: Initialize Capability Resolver...")
+        capability_resolver = CapabilityResolver(
+            registry=capability_registry_v2,
+            tool_selection_engine=tool_selection_engine,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("capability_resolver", capability_resolver)
+        kernel.module_registry.register_module(
+            "capability_resolver", "1.0.0",
+            ["event_bus", "capability_registry_v2", "tool_selection_engine"],
+            capability_resolver,
+        )
+        kernel.capability_registry.register_capability(
+            name="CapabilityResolver",
+            module_name="capability_resolver",
+            description="Phase 6 capability resolver with transitive dependency checking and tool selection delegation"
+        )
+        logger.info("Capability Resolver registered in FridayServiceContainer.")
+        
+        # Step 7k: Initialize Plugin SDK (Phase 7 Sprint 1)
+        logger.info("Boot Step 7k: Initialize Plugin SDK...")
+        from app.plugins.registry import PluginRegistry as Phase7PluginRegistry
+        from app.plugins.loader import PluginLoader as Phase7PluginLoader
+        from app.plugins.permissions import PermissionValidator as Phase7PermissionValidator
+        plugin_permission_validator = Phase7PermissionValidator()
+        plugin_permission_validator.grant("filesystem.read")
+        plugin_permission_validator.grant("filesystem.write")
+        plugin_permission_validator.grant("network")
+        plugin_permission_validator.grant("desktop.access")
+        plugin_registry = Phase7PluginRegistry(event_bus=event_bus)
+        plugin_loader = Phase7PluginLoader(
+            registry=plugin_registry,
+            permission_validator=plugin_permission_validator,
+            event_bus=event_bus,
+        )
+        self._container.register_singleton("plugin_registry", plugin_registry)
+        self._container.register_singleton("plugin_loader", plugin_loader)
+        kernel.module_registry.register_module(
+            "plugin_registry", "1.0.0",
+            ["event_bus"],
+            plugin_registry,
+        )
+        kernel.module_registry.register_module(
+            "plugin_loader", "1.0.0",
+            ["event_bus", "plugin_registry"],
+            plugin_loader,
+        )
+        kernel.capability_registry.register_capability(
+            name="PluginSDK",
+            module_name="plugin_registry",
+            description="Plugin SDK for local FRIDAY extensions with manifest validation, dependency resolution, permission model, and lifecycle management"
+        )
+        logger.info("Plugin SDK registered in FridayServiceContainer.")
+        
+        # Step 7l: Initialize Plugin Runtime (Phase 7 Sprint 2)
+        logger.info("Boot Step 7l: Initialize Plugin Runtime...")
+        from app.plugin_runtime.runtime import PluginRuntime
+        from app.plugin_runtime.base import PluginRuntimeConfig
+        plugin_runtime_config = PluginRuntimeConfig()
+        plugin_runtime = PluginRuntime(
+            sdk_registry=plugin_registry,
+            event_bus=event_bus,
+            config=plugin_runtime_config,
+        )
+        self._container.register_singleton("plugin_runtime", plugin_runtime)
+        kernel.module_registry.register_module(
+            "plugin_runtime", "1.0.0",
+            ["event_bus", "plugin_registry", "plugin_loader"],
+            plugin_runtime,
+        )
+        kernel.capability_registry.register_capability(
+            name="PluginRuntime",
+            module_name="plugin_runtime",
+            description="Phase 7 Plugin Runtime with sandboxed execution, hot reload, lifecycle management, and resource monitoring"
+        )
+        logger.info("Plugin Runtime registered in FridayServiceContainer.")
+        
+        # Step 7m: Initialize Plugin Marketplace (Phase 7 Sprint 3)
+        logger.info("Boot Step 7m: Initialize Plugin Marketplace...")
+        from app.plugin_marketplace.manager import PackageManager
+        from app.plugin_marketplace.base import MarketplaceConfig
+        marketplace_config = MarketplaceConfig(
+            local_repository_path="./plugins",
+        )
+        package_manager = PackageManager(
+            runtime=plugin_runtime,
+            event_bus=event_bus,
+            config=marketplace_config,
+        )
+        self._container.register_singleton("package_manager", package_manager)
+        kernel.module_registry.register_module(
+            "package_manager", "1.0.0",
+            ["event_bus", "plugin_registry", "plugin_runtime"],
+            package_manager,
+        )
+        kernel.capability_registry.register_capability(
+            name="PluginMarketplace",
+            module_name="package_manager",
+            description="Phase 7 Plugin Marketplace and Package Manager with dependency resolution, updates, rollback, and cache"
+        )
+        logger.info("Plugin Marketplace registered in FridayServiceContainer.")
+        
+        # Step 7n: Initialize Plugin Security (Phase 7 Sprint 4)
+        logger.info("Boot Step 7n: Initialize Plugin Security...")
+        from app.plugin_security.signature import PluginSigner
+        from app.plugin_security.trust_store import TrustStore
+        from app.plugin_security.publisher import PublisherRegistry
+        from app.plugin_security.repository_policy import RepositoryPolicyManager
+        from app.plugin_security.integrity import IntegrityVerifier
+        from app.plugin_security.verification import PluginVerifier
+        from app.plugin_security.update_policy import UpdatePolicy
+        plugin_signer = PluginSigner(secret_key="")
+        trust_store = TrustStore()
+        publisher_registry = PublisherRegistry()
+        repo_policy_manager = RepositoryPolicyManager()
+        integrity_verifier = IntegrityVerifier()
+        plugin_verifier = PluginVerifier(
+            signer=plugin_signer,
+            trust_store=trust_store,
+            policy_manager=repo_policy_manager,
+            integrity=integrity_verifier,
+        )
+        update_policy = UpdatePolicy()
+        self._container.register_singleton("plugin_security", plugin_verifier)
+        self._container.register_singleton("plugin_signer", plugin_signer)
+        self._container.register_singleton("trust_store", trust_store)
+        self._container.register_singleton("publisher_registry", publisher_registry)
+        self._container.register_singleton("repository_policy", repo_policy_manager)
+        kernel.module_registry.register_module(
+            "plugin_security", "1.0.0",
+            ["event_bus", "plugin_registry", "plugin_runtime", "package_manager"],
+            plugin_verifier,
+        )
+        kernel.module_registry.register_module(
+            "plugin_signer", "1.0.0", [], plugin_signer,
+        )
+        kernel.module_registry.register_module(
+            "trust_store", "1.0.0", [], trust_store,
+        )
+        kernel.module_registry.register_module(
+            "publisher_registry", "1.0.0", [], publisher_registry,
+        )
+        kernel.module_registry.register_module(
+            "repository_policy", "1.0.0", [], repo_policy_manager,
+        )
+        kernel.capability_registry.register_capability(
+            name="PluginSecurity",
+            module_name="plugin_security",
+            description="Phase 7 Plugin Security with cryptographic verification, trusted publishers, repository trust policies, secure updates, and rollback protection"
+        )
+        logger.info("Plugin Security registered in FridayServiceContainer.")
+        
+        # Step 7o: Initialize Multi-Agent Framework (Phase 8 Sprint 1)
+        logger.info("Boot Step 7o: Initialize Multi-Agent Framework...")
+        from app.agent_framework.manager import AgentManager
+        from app.agent_framework.agent import create_all_builtin_agents
+        agent_manager = AgentManager()
+        if event_bus is not None:
+            agent_manager.set_event_bus(event_bus)
+        builtin_agents = create_all_builtin_agents()
+        for agent in builtin_agents:
+            agent_manager.create_agent(
+                agent_id=agent.agent_id,
+                name=agent.name,
+                role=agent.role,
+                capabilities=agent.capabilities,
+                tools=agent.tools,
+                permissions=agent.permissions,
+                priority=agent.priority,
+                memory_scope=agent.memory_scope,
+            )
+        self._container.register_singleton("agent_manager", agent_manager)
+        kernel.module_registry.register_module(
+            "agent_manager", "1.0.0",
+            ["event_bus", "plugin_registry", "plugin_runtime", "memory_engine", "knowledge_engine", "planner"],
+            agent_manager,
+        )
+        kernel.capability_registry.register_capability(
+            name="MultiAgentFramework",
+            module_name="agent_manager",
+            description="Phase 8 multi-agent orchestration framework with 7 built-in specialized agents, inter-agent communication, scheduling, permissions, and health monitoring"
+        )
+        logger.info("Multi-Agent Framework registered in FridayServiceContainer.")
+        
+        # Step 7p: Initialize Agent Framework Enhancements (Phase 8 Sprint 2)
+        logger.info("Boot Step 7p: Initialize Agent Framework Enhancements...")
+        try:
+            from app.agent_framework.locks import KeyLockManager
+            from app.agent_framework.blackboard import Blackboard
+            from app.agent_framework.delegation import DelegationManager
+            from app.agent_framework.coordinator import Coordinator
+            from app.agent_framework.priority import PriorityEngine
+            from app.agent_framework.consensus import ConsensusEngine
+            from app.agent_framework.persistence import PersistenceManager
+            from app.agent_framework.recovery import RecoveryManager
+            from app.agent_framework.metrics import MetricsCollector
+            
+            key_lock_manager = KeyLockManager()
+            self._container.register_singleton("key_lock_manager", key_lock_manager)
+            kernel.module_registry.register_module(
+                "key_lock_manager", "1.0.0", [], key_lock_manager,
+            )
+            
+            blackboard = Blackboard(lock_manager=key_lock_manager)
+            self._container.register_singleton("blackboard", blackboard)
+            kernel.module_registry.register_module(
+                "blackboard", "1.0.0", ["key_lock_manager"], blackboard,
+            )
+            kernel.capability_registry.register_capability(
+                name="SharedBlackboard",
+                module_name="blackboard",
+                description="Phase 8 shared blackboard for inter-agent collaboration with versioning, conflict detection, and locking",
+            )
+            
+            delegation_manager = DelegationManager()
+            self._container.register_singleton("delegation_manager", delegation_manager)
+            kernel.module_registry.register_module(
+                "delegation_manager", "1.0.0", [], delegation_manager,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentDelegation",
+                module_name="delegation_manager",
+                description="Phase 8 task delegation with sub-task creation, dependency tracking, parent-child relationships, and completion propagation",
+            )
+            
+            priority_engine = PriorityEngine()
+            self._container.register_singleton("priority_engine", priority_engine)
+            kernel.module_registry.register_module(
+                "priority_engine", "1.0.0", [], priority_engine,
+            )
+            
+            coordinator = Coordinator(
+                agent_manager=agent_manager,
+                delegation_manager=delegation_manager,
+                blackboard=blackboard,
+                priority_engine=priority_engine,
+                metrics=agent_manager.metrics,
+            )
+            self._container.register_singleton("coordinator", coordinator)
+            kernel.module_registry.register_module(
+                "coordinator", "1.0.0",
+                ["agent_manager", "delegation_manager", "blackboard", "priority_engine"],
+                coordinator,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentCoordinator",
+                module_name="coordinator",
+                description="Phase 8 agent coordinator with parallel/serial/dependency-aware execution, priority queues, and resource allocation",
+            )
+            
+            consensus_engine = ConsensusEngine()
+            self._container.register_singleton("consensus_engine", consensus_engine)
+            kernel.module_registry.register_module(
+                "consensus_engine", "1.0.0", [], consensus_engine,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentConsensus",
+                module_name="consensus_engine",
+                description="Phase 8 deterministic decision strategies: majority vote, priority override, coordinator decision, unanimous approval",
+            )
+            
+            persistence_manager = PersistenceManager()
+            self._container.register_singleton("persistence_manager", persistence_manager)
+            kernel.module_registry.register_module(
+                "persistence_manager", "1.0.0", [], persistence_manager,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentPersistence",
+                module_name="persistence_manager",
+                description="Phase 8 agent state persistence with checkpoint/restore, warm restart, and crash recovery support",
+            )
+            
+            recovery_manager = RecoveryManager(
+                persistence=persistence_manager,
+                agent_manager=agent_manager,
+                delegation=delegation_manager,
+                blackboard=blackboard,
+                metrics=agent_manager.metrics,
+            )
+            self._container.register_singleton("recovery_manager", recovery_manager)
+            kernel.module_registry.register_module(
+                "recovery_manager", "1.0.0",
+                ["persistence_manager", "agent_manager", "delegation_manager", "blackboard"],
+                recovery_manager,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentRecovery",
+                module_name="recovery_manager",
+                description="Phase 8 automatic recovery after restart with agent state, delegated work, and shared context restoration",
+            )
+            
+            metrics_collector = MetricsCollector()
+            self._container.register_singleton("metrics_collector", metrics_collector)
+            kernel.module_registry.register_module(
+                "metrics_collector", "1.0.0", [], metrics_collector,
+            )
+            kernel.capability_registry.register_capability(
+                name="AgentMetrics",
+                module_name="metrics_collector",
+                description="Phase 8 agent metrics tracking: delegation count, parallel efficiency, queue latency, agent utilization, recovery statistics",
+            )
+            
+            logger.info("Agent Framework Enhancements registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Agent Framework Enhancements: {str(e)}")
+            raise e
+        
+        # Step 7q: Initialize Cognitive Planning Engine (Phase 8 Sprint 3)
+        logger.info("Boot Step 7q: Initialize Cognitive Planning Engine...")
+        try:
+            from app.planning.planner import PlanningEngine
+            planning_engine = PlanningEngine(agent_manager=agent_manager)
+            if event_bus is not None:
+                planning_engine.set_event_bus(event_bus)
+            self._container.register_singleton("planning_engine", planning_engine)
+            kernel.module_registry.register_module(
+                "planning_engine", "1.0.0",
+                ["event_bus", "agent_manager"],
+                planning_engine,
+            )
+            kernel.capability_registry.register_capability(
+                name="CognitivePlanning",
+                module_name="planning_engine",
+                description="Phase 8 symbolic cognitive planning engine with goal decomposition, DAG planning, constraint validation, simulation, heuristics, plan memory, and optimization",
+            )
+            logger.info("Cognitive Planning Engine registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Cognitive Planning Engine: {str(e)}")
+            raise e
+        
+        # Step 7r: Initialize Autonomous Mission Runtime (Phase 9 Sprint 1)
+        logger.info("Boot Step 7r: Initialize Autonomous Mission Runtime...")
+        try:
+            from app.runtime.runtime import MissionRuntime
+            runtime = MissionRuntime(
+                agent_manager=agent_manager,
+                planning_engine=planning_engine,
+                memory_engine=memory_engine,
+                plan_memory=planning_engine._memory if hasattr(planning_engine, '_memory') else None,
+            )
+            if event_bus is not None:
+                runtime.set_event_bus(event_bus)
+            self._container.register_singleton("mission_runtime", runtime)
+            kernel.module_registry.register_module(
+                "mission_runtime", "1.0.0",
+                ["event_bus", "agent_manager", "planning_engine"],
+                runtime,
+            )
+            kernel.capability_registry.register_capability(
+                name="AutonomousMissionRuntime",
+                module_name="mission_runtime",
+                description="Phase 9 autonomous mission runtime connecting intent analysis, planning, capability resolution, tool selection, workflow generation, agent assignment, execution, monitoring, recovery, reflection, and memory update into one automated lifecycle",
+            )
+            logger.info("Autonomous Mission Runtime registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Autonomous Mission Runtime: {str(e)}")
+            raise e
         
         # Step 8: Initialize Mission Engine
         logger.info("Boot Step 8: Initialize Mission Engine...")

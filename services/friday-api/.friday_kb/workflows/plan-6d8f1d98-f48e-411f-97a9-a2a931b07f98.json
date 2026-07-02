@@ -1,0 +1,85 @@
+{
+  "workflow_id": "plan-6d8f1d98-f48e-411f-97a9-a2a931b07f98",
+  "name": "Process action query: 'stream test'",
+  "description": "",
+  "steps": {
+    "step_0": {
+      "step_id": "step_0",
+      "name": "Step 0",
+      "step_type": "llm",
+      "input": {
+        "tool_name": "browser",
+        "args": {
+          "prompt": "stream test"
+        }
+      },
+      "depends_on": [],
+      "retry_policy": {
+        "max_retries": 0,
+        "base_delay": 1.0,
+        "max_delay": 60.0,
+        "backoff_factor": 2.0,
+        "retryable_errors": []
+      },
+      "timeout": null,
+      "status": "COMPLETED",
+      "result": {
+        "response": ""
+      },
+      "error": null,
+      "started_at": "2026-06-30T06:23:04.384468Z",
+      "completed_at": "2026-06-30T06:23:04.385595Z",
+      "retry_count": 0,
+      "parallel_group": null
+    }
+  },
+  "status": "COMPLETED",
+  "created_at": "2026-06-30T06:23:04.378713Z",
+  "updated_at": "2026-06-30T06:23:04.387781Z",
+  "started_at": "2026-06-30T06:23:04.383319Z",
+  "completed_at": "2026-06-30T06:23:04.387778Z",
+  "variables": {
+    "intent": "Unknown",
+    "priority": "medium",
+    "confidence": 0.3,
+    "step_0.output": {
+      "response": ""
+    }
+  },
+  "schedule": null,
+  "error": null,
+  "metadata": {
+    "capabilities": [],
+    "memory_required": false,
+    "tool_required": true,
+    "clarification_required": false,
+    "tool_name": "browser",
+    "reasoning": "Planned action: Process action query: 'stream test'"
+  },
+  "source_plan": {
+    "plan_id": "6d8f1d98-f48e-411f-97a9-a2a931b07f98",
+    "goal": "Process action query: 'stream test'",
+    "steps": [
+      {
+        "step": 1,
+        "action": "process_prompt",
+        "args": {
+          "prompt": "stream test"
+        }
+      }
+    ],
+    "variables": {
+      "intent": "Unknown",
+      "priority": "medium",
+      "confidence": 0.3
+    },
+    "metadata": {
+      "capabilities": [],
+      "memory_required": false,
+      "tool_required": true,
+      "clarification_required": false,
+      "tool_name": "browser",
+      "reasoning": "Planned action: Process action query: 'stream test'"
+    }
+  }
+}
