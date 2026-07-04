@@ -19,6 +19,7 @@ async def get_orchestrator() -> FridayOrchestrator:
     memory = kernel.get_service("memory_engine")
     runtime_bridge = kernel.get_service("runtime_scheduler_bridge")
     event_bus = kernel.get_service("event_bus")
+    mission_runtime = kernel.get_service("mission_runtime")
     
     intent_classifier = IntentClassifier()
     prompt_manager = PromptManager()
@@ -33,6 +34,7 @@ async def get_orchestrator() -> FridayOrchestrator:
         embeddings=embeddings,
         runtime_bridge=runtime_bridge,
         event_bus=event_bus,
+        mission_runtime=mission_runtime,
     )
 
 @router.post("/ask", response_model=AskResponse)
@@ -67,7 +69,8 @@ async def ask(
         execution_time_ms=result.execution_time_ms,
         telemetry=telemetry_detail,
         confirmation_required=getattr(result, "confirmation_required", False),
-        confirmation_token=getattr(result, "confirmation_token", None)
+        confirmation_token=getattr(result, "confirmation_token", None),
+        mission_id=getattr(result, "mission_id", None)
     )
 
 @router.post("/chat")
@@ -76,11 +79,13 @@ async def chat(
     orchestrator: FridayOrchestrator = Depends(get_orchestrator)
 ):
     # Check confirmation loop first
+    print("[DEBUG ROUTE] Entering chat endpoint", flush=True)
     requires_conf, token, warning, tool_name = await orchestrator.check_confirmation(
         prompt=request.prompt,
         confirmed=request.confirmed,
         confirmation_token=request.confirmation_token
     )
+    print(f"[DEBUG ROUTE] check_confirmation returned: {requires_conf}", flush=True)
     
     if requires_conf:
         # Halt stream and return a flat JSON request for confirmation

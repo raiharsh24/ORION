@@ -8,11 +8,10 @@ from app.kernel.state import KernelState
 
 # Core Subsystem Imports
 from app.events.bus import EventBus
-from app.friday.vectordb import VectorDB
-from app.memory.embeddings import EmbeddingsManager
-from app.friday.retrieval import RetrievalEngine
 from app.friday.planner import Planner
-from app.desktop.controller import DesktopController
+from app.friday.knowledge_engine import KnowledgeEngine
+from app.friday.tool_engine import ToolEngine
+from app.desktop.automation import DesktopAutomationService
 from app.missions.mission_manager import MissionManager, MissionTelemetry
 from app.missions.mission_history import MissionHistory
 from app.workflow.engine import WorkflowEngine
@@ -20,10 +19,102 @@ from app.workflow.history import WorkflowHistory
 from app.scheduler.scheduler import FridayScheduler
 from app.llm.router import LLMRouter
 from app.llm.gemini import GeminiAdapter
-from app.desktop.automation import DesktopAutomationService
 from app.agents import (
     AgentMessageBus, AgentRegistry, AgentScheduler, AgentTelemetry,
     SharedContext, AgentCoordinator
+)
+
+# Phase 3 Intelligence Services
+from app.intent.analyzer import RuleBasedIntentAnalyzer
+from app.context.manager import StrategyManager
+from app.extraction.registry import ExtractorRegistry
+from app.extraction.extractors import (
+    MemoryExtractor, KnowledgeExtractor, WorkflowExtractor,
+    DesktopExtractor, BrowserExtractor, TerminalExtractor,
+    MissionExtractor, VoiceExtractor, SystemStateExtractor,
+)
+from app.ranking.ranker import ContextRanker
+from app.budget.allocator import AdaptiveTokenBudgetAllocator
+from app.validation.validator import ContextValidator
+from app.compression.compressor import ContextCompressor
+from app.assembly.assembler import PromptAssembler
+
+# Phase 5 Intelligence Pipeline
+from app.intelligence.pipeline import IntelligencePipeline
+from app.cache.cache import ContextCache
+
+# Core dependencies
+from app.core.dependencies import memory_store, desktop_controller as core_desktop_controller, tool_registry as core_tool_registry
+
+# Phase 6 Universal Tool Registry
+from app.tools.registry import ToolRegistry as UniversalToolRegistry
+from app.tool_selection.selector import ToolSelectionEngine
+from app.tool_execution.executor import ToolExecutionEngine
+from app.workflow_engine.executor import WorkflowExecutor as WorkflowEngineV2
+from app.mission_engine.executor import MissionExecutor
+from app.mission_engine.mission import MissionStore
+from app.mission_engine.checkpoint import CheckpointManager as MissionCheckpointManager
+from app.mission_engine.planner import MissionPlanner
+from app.capabilities.registry import CapabilityRegistry as CapabilityRegistryV2
+from app.capabilities.resolver import CapabilityResolver
+from app.capabilities.defaults import DEFAULT_CAPABILITIES
+
+# Phase 7 Plugin SDK
+from app.plugins.registry import PluginRegistry as Phase7PluginRegistry
+from app.plugins.loader import PluginLoader as Phase7PluginLoader
+from app.plugins.permissions import PermissionValidator as Phase7PermissionValidator
+from app.plugin_runtime.runtime import PluginRuntime
+from app.plugin_runtime.base import PluginRuntimeConfig
+from app.plugin_marketplace.manager import PackageManager
+from app.plugin_marketplace.base import MarketplaceConfig
+from app.plugin_security.signature import PluginSigner
+from app.plugin_security.trust_store import TrustStore
+from app.plugin_security.publisher import PublisherRegistry
+from app.plugin_security.repository_policy import RepositoryPolicyManager
+from app.plugin_security.integrity import IntegrityVerifier
+from app.plugin_security.verification import PluginVerifier
+from app.plugin_security.update_policy import UpdatePolicy
+
+# Phase 8 Agent Framework
+from app.agent_framework.manager import AgentManager
+from app.agent_framework.agent import create_all_builtin_agents
+from app.agent_framework.locks import KeyLockManager
+from app.agent_framework.blackboard import Blackboard
+from app.agent_framework.delegation import DelegationManager
+from app.agent_framework.coordinator import Coordinator
+from app.agent_framework.priority import PriorityEngine
+from app.agent_framework.consensus import ConsensusEngine
+from app.agent_framework.persistence import PersistenceManager
+from app.agent_framework.recovery import RecoveryManager
+from app.agent_framework.metrics import MetricsCollector
+
+# Phase 8 Cognitive Planning
+from app.planning.planner import PlanningEngine
+
+# Phase 9 Mission Runtime
+from app.runtime.runtime import MissionRuntime
+
+# Alpha 5.0 Workflow Runtime
+from app.workflow_runtime.persistence import WorkflowPersistence
+from app.workflow_runtime.checkpoints import CheckpointManager as WorkflowCheckpointManager
+from app.workflow_runtime.worker_agent import WorkflowWorkerAgent
+from app.workflow_runtime.executor import WorkflowRuntimeExecutor
+from app.workflow_runtime.manager import WorkflowRuntimeManager
+from app.workflow_runtime.scheduler_bridge import RuntimeSchedulerBridge
+
+# Voice Subsystem
+from app.voice.manager import VoiceSessionManager
+from app.voice.stt import GeminiSpeechProvider
+from app.voice.state import VoiceStateMachine
+from app.voice.tts import TTSProviderRegistry, MockTTSProvider, TTSCoordinator
+from app.voice.tts.edge import EdgeTTSProvider
+from app.voice.output_manager import VoiceOutputManager
+
+# Vision Subsystem
+from app.vision.engine import VisionEngine
+from app.tools.vision_tools import (
+    ScreenshotCaptureTool, ImageAnalysisTool, OCRTool,
+    ScreenContextTool, ClipboardImageTool
 )
 
 class BootManager:
@@ -42,6 +133,19 @@ class BootManager:
         logger.info("Executing FRIDAY BootManager sequence...")
         from app.kernel.kernel import FridayKernel
         kernel = FridayKernel.get_instance()
+        
+        # Step 0: Startup Validation
+        logger.info("Boot Step 0: Startup Validation...")
+        try:
+            from app.kernel.validation import validate_startup
+            validation_errors = validate_startup(config)
+            if validation_errors:
+                for err in validation_errors:
+                    logger.warning(f"Startup validation: {err}")
+            else:
+                logger.info("Startup validation passed - SUCCESS")
+        except Exception as e:
+            logger.warning(f"Startup validation skipped: {e}")
         
         # Step 1: Load Configuration (Done by caller/passed in)
         logger.info("Boot Step 1: Load Configuration - SUCCESS")
@@ -63,22 +167,6 @@ class BootManager:
         
         # Step 3a: Initialize Phase 3 Intelligence Services
         logger.info("Boot Step 3a: Initialize Phase 3 Intelligence Services...")
-        
-        from app.intent.analyzer import RuleBasedIntentAnalyzer
-        from app.context.manager import StrategyManager
-        from app.extraction.registry import ExtractorRegistry
-        from app.ranking.ranker import ContextRanker
-        from app.budget.allocator import AdaptiveTokenBudgetAllocator
-        from app.validation.validator import ContextValidator
-        from app.compression.compressor import ContextCompressor
-        from app.assembly.assembler import PromptAssembler
-        
-        # Register default extractors
-        from app.extraction.extractors import (
-            MemoryExtractor, KnowledgeExtractor, WorkflowExtractor,
-            DesktopExtractor, BrowserExtractor, TerminalExtractor,
-            MissionExtractor, VoiceExtractor, SystemStateExtractor,
-        )
         
         intent_analyzer = RuleBasedIntentAnalyzer(event_bus=event_bus)
         self._container.register_singleton("intent_analyzer", intent_analyzer)
@@ -165,8 +253,6 @@ class BootManager:
         
         # Step 3b: Initialize Phase 5 Intelligence Pipeline Orchestrator
         logger.info("Boot Step 3b: Initialize Phase 5 Intelligence Pipeline Orchestrator...")
-        from app.intelligence.pipeline import IntelligencePipeline
-        from app.cache.cache import ContextCache
         
         pipeline_orchestrator = IntelligencePipeline(event_bus=event_bus)
         self._container.register_singleton("pipeline_orchestrator", pipeline_orchestrator)
@@ -190,7 +276,6 @@ class BootManager:
         
         # Step 4: Initialize Memory Engine
         logger.info("Boot Step 4: Initialize Memory Engine...")
-        from app.core.dependencies import memory_store
         memory_engine = memory_store
         self._container.register_singleton("memory_engine", memory_engine)
         kernel.module_registry.register_module("memory_engine", "1.0.0", [], memory_engine)
@@ -204,20 +289,15 @@ class BootManager:
         # Step 5: Initialize Knowledge
         # Step 5: Initialize Knowledge Engine
         logger.info("Boot Step 5: Initialize Knowledge Engine...")
-        try:
-            from app.friday.knowledge_engine import KnowledgeEngine
-            knowledge_engine = KnowledgeEngine()
-            self._container.register_singleton("knowledge_engine", knowledge_engine)
-            kernel.module_registry.register_module("knowledge_engine", "1.0.0", [], knowledge_engine)
-            kernel.capability_registry.register_capability(
-                name="Knowledge",
-                module_name="knowledge_engine",
-                description="Vector DB indexing and semantic search capabilities across local workspaces"
-            )
-            logger.info("Knowledge Engine registered in FridayServiceContainer.")
-        except Exception as e:
-            logger.error(f"Failed to initialize Knowledge Engine: {str(e)}")
-            raise e
+        knowledge_engine = KnowledgeEngine()
+        self._container.register_singleton("knowledge_engine", knowledge_engine)
+        kernel.module_registry.register_module("knowledge_engine", "1.0.0", [], knowledge_engine)
+        kernel.capability_registry.register_capability(
+            name="Knowledge",
+            module_name="knowledge_engine",
+            description="Vector DB indexing and semantic search capabilities across local workspaces"
+        )
+        logger.info("Knowledge Engine registered in FridayServiceContainer.")
             
         # Step 6: Initialize Planner Engine
         logger.info("Boot Step 6: Initialize Planner Engine...")
@@ -233,9 +313,9 @@ class BootManager:
         
         # Step 7: Initialize Desktop Controller
         logger.info("Boot Step 7: Initialize Desktop Controller...")
-        from app.core.dependencies import desktop_controller, tool_registry
+        desktop_controller = core_desktop_controller
         self._container.register_singleton("desktop_controller", desktop_controller)
-        self._container.register_singleton("tool_registry", tool_registry)
+        self._container.register_singleton("tool_registry", core_tool_registry)
         kernel.module_registry.register_module("desktop_controller", "1.0.0", [], desktop_controller)
         kernel.capability_registry.register_capability(
             name="Desktop",
@@ -258,7 +338,6 @@ class BootManager:
         
         # Step 7c: Initialize Tool Engine Subsystem
         logger.info("Boot Step 7c: Initialize Tool Engine...")
-        from app.friday.tool_engine import ToolEngine
         tool_engine = ToolEngine()
         self._container.register_singleton("tool_engine", tool_engine)
         kernel.module_registry.register_module("tool_engine", "1.0.0", ["event_bus", "tool_registry"], tool_engine)
@@ -266,17 +345,6 @@ class BootManager:
         
         # Step 7d: Initialize Phase 6 Universal Tool Registry
         logger.info("Boot Step 7d: Initialize Phase 6 Universal Tool Registry...")
-        from app.tools.registry import ToolRegistry as UniversalToolRegistry
-        from app.tool_selection.selector import ToolSelectionEngine
-        from app.tool_execution.executor import ToolExecutionEngine
-        from app.workflow_engine.executor import WorkflowExecutor as WorkflowEngineV2
-        from app.mission_engine.executor import MissionExecutor
-        from app.mission_engine.mission import MissionStore
-        from app.mission_engine.checkpoint import CheckpointManager
-        from app.mission_engine.planner import MissionPlanner
-        from app.capabilities.registry import CapabilityRegistry as CapabilityRegistryV2
-        from app.capabilities.resolver import CapabilityResolver
-        from app.capabilities.defaults import DEFAULT_CAPABILITIES
         
         universal_tool_registry = UniversalToolRegistry(event_bus=event_bus)
         self._container.register_singleton("universal_tool_registry", universal_tool_registry)
@@ -346,7 +414,7 @@ class BootManager:
         # Step 7h: Initialize Mission Engine V2
         logger.info("Boot Step 7h: Initialize Mission Engine V2...")
         mission_store = MissionStore()
-        checkpoint_manager = CheckpointManager()
+        checkpoint_manager = MissionCheckpointManager()
         mission_planner = MissionPlanner(mission_store)
         mission_engine_v2 = MissionExecutor(
             workflow_executor=workflow_engine_v2,
@@ -408,9 +476,6 @@ class BootManager:
         
         # Step 7k: Initialize Plugin SDK (Phase 7 Sprint 1)
         logger.info("Boot Step 7k: Initialize Plugin SDK...")
-        from app.plugins.registry import PluginRegistry as Phase7PluginRegistry
-        from app.plugins.loader import PluginLoader as Phase7PluginLoader
-        from app.plugins.permissions import PermissionValidator as Phase7PermissionValidator
         plugin_permission_validator = Phase7PermissionValidator()
         plugin_permission_validator.grant("filesystem.read")
         plugin_permission_validator.grant("filesystem.write")
@@ -443,8 +508,6 @@ class BootManager:
         
         # Step 7l: Initialize Plugin Runtime (Phase 7 Sprint 2)
         logger.info("Boot Step 7l: Initialize Plugin Runtime...")
-        from app.plugin_runtime.runtime import PluginRuntime
-        from app.plugin_runtime.base import PluginRuntimeConfig
         plugin_runtime_config = PluginRuntimeConfig()
         plugin_runtime = PluginRuntime(
             sdk_registry=plugin_registry,
@@ -466,8 +529,6 @@ class BootManager:
         
         # Step 7m: Initialize Plugin Marketplace (Phase 7 Sprint 3)
         logger.info("Boot Step 7m: Initialize Plugin Marketplace...")
-        from app.plugin_marketplace.manager import PackageManager
-        from app.plugin_marketplace.base import MarketplaceConfig
         marketplace_config = MarketplaceConfig(
             local_repository_path="./plugins",
         )
@@ -491,13 +552,6 @@ class BootManager:
         
         # Step 7n: Initialize Plugin Security (Phase 7 Sprint 4)
         logger.info("Boot Step 7n: Initialize Plugin Security...")
-        from app.plugin_security.signature import PluginSigner
-        from app.plugin_security.trust_store import TrustStore
-        from app.plugin_security.publisher import PublisherRegistry
-        from app.plugin_security.repository_policy import RepositoryPolicyManager
-        from app.plugin_security.integrity import IntegrityVerifier
-        from app.plugin_security.verification import PluginVerifier
-        from app.plugin_security.update_policy import UpdatePolicy
         plugin_signer = PluginSigner(secret_key="")
         trust_store = TrustStore()
         publisher_registry = PublisherRegistry()
@@ -511,10 +565,10 @@ class BootManager:
         )
         update_policy = UpdatePolicy()
         self._container.register_singleton("plugin_security", plugin_verifier)
-        self._container.register_singleton("plugin_signer", plugin_signer)
         self._container.register_singleton("trust_store", trust_store)
         self._container.register_singleton("publisher_registry", publisher_registry)
         self._container.register_singleton("repository_policy", repo_policy_manager)
+
         kernel.module_registry.register_module(
             "plugin_security", "1.0.0",
             ["event_bus", "plugin_registry", "plugin_runtime", "package_manager"],
@@ -541,8 +595,6 @@ class BootManager:
         
         # Step 7o: Initialize Multi-Agent Framework (Phase 8 Sprint 1)
         logger.info("Boot Step 7o: Initialize Multi-Agent Framework...")
-        from app.agent_framework.manager import AgentManager
-        from app.agent_framework.agent import create_all_builtin_agents
         agent_manager = AgentManager()
         if event_bus is not None:
             agent_manager.set_event_bus(event_bus)
@@ -574,18 +626,7 @@ class BootManager:
         # Step 7p: Initialize Agent Framework Enhancements (Phase 8 Sprint 2)
         logger.info("Boot Step 7p: Initialize Agent Framework Enhancements...")
         try:
-            from app.agent_framework.locks import KeyLockManager
-            from app.agent_framework.blackboard import Blackboard
-            from app.agent_framework.delegation import DelegationManager
-            from app.agent_framework.coordinator import Coordinator
-            from app.agent_framework.priority import PriorityEngine
-            from app.agent_framework.consensus import ConsensusEngine
-            from app.agent_framework.persistence import PersistenceManager
-            from app.agent_framework.recovery import RecoveryManager
-            from app.agent_framework.metrics import MetricsCollector
-            
             key_lock_manager = KeyLockManager()
-            self._container.register_singleton("key_lock_manager", key_lock_manager)
             kernel.module_registry.register_module(
                 "key_lock_manager", "1.0.0", [], key_lock_manager,
             )
@@ -613,7 +654,6 @@ class BootManager:
             )
             
             priority_engine = PriorityEngine()
-            self._container.register_singleton("priority_engine", priority_engine)
             kernel.module_registry.register_module(
                 "priority_engine", "1.0.0", [], priority_engine,
             )
@@ -638,7 +678,6 @@ class BootManager:
             )
             
             consensus_engine = ConsensusEngine()
-            self._container.register_singleton("consensus_engine", consensus_engine)
             kernel.module_registry.register_module(
                 "consensus_engine", "1.0.0", [], consensus_engine,
             )
@@ -697,7 +736,6 @@ class BootManager:
         # Step 7q: Initialize Cognitive Planning Engine (Phase 8 Sprint 3)
         logger.info("Boot Step 7q: Initialize Cognitive Planning Engine...")
         try:
-            from app.planning.planner import PlanningEngine
             planning_engine = PlanningEngine(agent_manager=agent_manager)
             if event_bus is not None:
                 planning_engine.set_event_bus(event_bus)
@@ -720,7 +758,6 @@ class BootManager:
         # Step 7r: Initialize Autonomous Mission Runtime (Phase 9 Sprint 1)
         logger.info("Boot Step 7r: Initialize Autonomous Mission Runtime...")
         try:
-            from app.runtime.runtime import MissionRuntime
             runtime = MissionRuntime(
                 agent_manager=agent_manager,
                 planning_engine=planning_engine,
@@ -751,7 +788,6 @@ class BootManager:
         self._container.register_singleton("telemetry", telemetry)
         kernel.module_registry.register_module("telemetry", "1.0.0", [], telemetry)
         history = MissionHistory()
-        self._container.register_singleton("history", history)
         kernel.module_registry.register_module("history", "1.0.0", [], history)
         mission_engine = MissionManager(
             event_bus=event_bus,
@@ -771,7 +807,6 @@ class BootManager:
         # Step 9: Initialize Workflow Engine (full DI)
         logger.info("Boot Step 9: Initialize Workflow Engine...")
         workflow_history = WorkflowHistory()
-        self._container.register_singleton("workflow_history", workflow_history)
         kernel.module_registry.register_module("workflow_history", "1.0.0", [], workflow_history)
         workflow_engine = WorkflowEngine(
             mission_engine=mission_engine,
@@ -881,20 +916,11 @@ class BootManager:
         # Step 12: Initialize Workflow Runtime (Alpha 5.0)
         logger.info("Boot Step 12: Initialize Workflow Runtime...")
         try:
-            from app.workflow_runtime.persistence import WorkflowPersistence
-            from app.workflow_runtime.checkpoints import CheckpointManager
-            from app.workflow_runtime.worker_agent import WorkflowWorkerAgent
-            from app.workflow_runtime.executor import WorkflowRuntimeExecutor
-            from app.workflow_runtime.manager import WorkflowRuntimeManager
-            from app.workflow_runtime.scheduler_bridge import RuntimeSchedulerBridge
-
             persist_dir = getattr(config.paths, "persist_dir", getattr(config.paths, "workspace_root", "./data"))
             workflow_persistence = WorkflowPersistence(persist_dir=persist_dir)
-            self._container.register_singleton("workflow_persistence", workflow_persistence)
             kernel.module_registry.register_module("workflow_persistence", "1.0.0", [], workflow_persistence)
 
-            checkpoint_manager = CheckpointManager(persist_dir=persist_dir)
-            self._container.register_singleton("checkpoint_manager", checkpoint_manager)
+            checkpoint_manager = WorkflowCheckpointManager(persist_dir=persist_dir)
             kernel.module_registry.register_module("checkpoint_manager", "1.0.0", [], checkpoint_manager)
 
             workflow_worker = WorkflowWorkerAgent(
@@ -904,7 +930,6 @@ class BootManager:
             )
             await agent_registry.register(workflow_worker)
             workflow_worker.set_context(shared_context)
-            self._container.register_singleton("workflow_worker_agent", workflow_worker)
             kernel.module_registry.register_module("workflow_worker_agent", "1.0.0", ["shared_context"], workflow_worker)
 
             runtime_executor = WorkflowRuntimeExecutor(
@@ -913,7 +938,6 @@ class BootManager:
                 checkpoint_manager=checkpoint_manager,
                 event_bus=event_bus,
             )
-            self._container.register_singleton("workflow_runtime_executor", runtime_executor)
             kernel.module_registry.register_module("workflow_runtime_executor", "1.0.0", ["agent_coordinator", "shared_context", "checkpoint_manager"], runtime_executor)
 
             runtime_manager = WorkflowRuntimeManager(
@@ -948,13 +972,7 @@ class BootManager:
         # Step 13: Initialize Voice Subsystem
         logger.info("Boot Step 13: Initialize Voice Subsystem...")
         try:
-            from app.voice.manager import VoiceSessionManager
-            from app.voice.stt import GeminiSpeechProvider
             from app.api.routes import get_orchestrator
-            from app.voice.state import VoiceStateMachine
-            from app.voice.tts import TTSProviderRegistry, MockTTSProvider, TTSCoordinator
-            from app.voice.tts.edge import EdgeTTSProvider
-            from app.voice.output_manager import VoiceOutputManager
             
             # Resolve Gemini Adapter from llm_router for STT provider
             llm_router = self._container.get("llm_router")
@@ -1003,6 +1021,35 @@ class BootManager:
             logger.error(f"Failed to initialize Voice Subsystem: {str(e)}")
             raise e
 
+        # Step 14: Initialize Vision Subsystem
+        logger.info("Boot Step 14: Initialize Vision Subsystem...")
+        try:
+            desktop_controller = self._container.get("desktop_controller")
+            vision_engine = VisionEngine(
+                event_bus=event_bus,
+                desktop_controller=desktop_controller,
+            )
+            await vision_engine.initialize()
+            self._container.register_singleton("vision_engine", vision_engine)
+            kernel.module_registry.register_module(
+                "vision_engine", "1.0.0",
+                ["event_bus", "desktop_controller"],
+                vision_engine
+            )
+
+            tool_registry = self._container.get("tool_registry")
+            if tool_registry:
+                tool_registry.register("vision.screenshot", ScreenshotCaptureTool(desktop_controller, vision_engine))
+                tool_registry.register("vision.analyze", ImageAnalysisTool(desktop_controller, vision_engine))
+                tool_registry.register("vision.ocr", OCRTool(desktop_controller, vision_engine))
+                tool_registry.register("vision.screen_context", ScreenContextTool(desktop_controller, vision_engine))
+                tool_registry.register("vision.clipboard_image", ClipboardImageTool(desktop_controller, vision_engine))
+                logger.info("Vision tools registered in ToolRegistry.")
+            logger.info("Vision Subsystem registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Vision Subsystem: {str(e)}")
+            raise e
+
         # Construct Context
         user_ctx = UserContext()
         mission_ctx = MissionContext()
@@ -1019,5 +1066,5 @@ class BootManager:
             metadata=metadata
         )
         
-        logger.info("Boot Step 12: Ready - Boot sequence completed successfully.")
+        logger.info("Boot Step 15: Ready - Boot sequence completed successfully.")
         return context

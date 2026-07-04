@@ -47,5 +47,20 @@ class ConversationMemory:
     def list_sessions(self) -> List[ChatSession]:
         return list(self._sessions.values())
 
+    def prune_sessions(self, max_age_seconds: int = 86400,
+                       max_messages: int = 200) -> int:
+        """Remove sessions older than max_age_seconds and trim message lists."""
+        now = time.time()
+        pruned = 0
+        for sid in list(self._sessions.keys()):
+            session = self._sessions[sid]
+            if now - session.created_at > max_age_seconds:
+                del self._sessions[sid]
+                pruned += 1
+            elif len(session.messages) > max_messages:
+                session.messages = session.messages[-max_messages:]
+                pruned += 1
+        return pruned
+
     def clear(self) -> None:
         self._sessions.clear()

@@ -110,6 +110,9 @@ class TelemetryCollector:
     def get_mission(self, mission_id: str) -> Optional[MissionTelemetry]:
         return self._missions.get(mission_id)
 
+    def remove_mission(self, mission_id: str) -> None:
+        self._missions.pop(mission_id, None)
+
     @property
     def total_missions(self) -> int:
         return self._counters["total"]

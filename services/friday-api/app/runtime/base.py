@@ -22,7 +22,7 @@ class MissionStage:
 @dataclass
 class Mission:
     mission_id: str
-    user_request: str
+    user_request: str = ""
     intent: str = ""
     status: str = "created"
     stages: List[MissionStage] = field(default_factory=list)
@@ -34,6 +34,18 @@ class Mission:
     assigned_agents: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    name: str = ""
+    description: str = ""
+    workflow_ids: List[str] = field(default_factory=list)
+    current_step: Optional[str] = None
+    progress: float = 0.0
+    started_at: Optional[datetime] = None
+    priority: str = "normal"
+    mission_type: str = "user_defined"
+
+    @property
+    def id(self) -> str:
+        return self.mission_id
 
     def add_stage(self, name: str) -> MissionStage:
         stage = MissionStage(name=name, status="running",

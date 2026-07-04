@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 
@@ -18,6 +18,11 @@ class SubsystemHealth(BaseModel):
     message: Optional[str] = None
     last_checked: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     details: Dict[str, Any] = Field(default_factory=dict)
+    latency_ms: Optional[float] = None
+    uptime_seconds: Optional[float] = None
+    dependencies: List[str] = Field(default_factory=list)
+    last_error: Optional[str] = None
+    ready: bool = True
 
 class KernelHealth(BaseModel):
     """
@@ -129,6 +134,9 @@ class KernelHealth(BaseModel):
     mission_runtime: SubsystemHealth = Field(default_factory=lambda: SubsystemHealth(
         name="mission_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered"
     ))
+    vision_engine: SubsystemHealth = Field(default_factory=lambda: SubsystemHealth(
+        name="vision_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered"
+    ))
 
 def check_service_health(name: str, service: Any) -> SubsystemHealth:
     """
@@ -136,16 +144,18 @@ def check_service_health(name: str, service: Any) -> SubsystemHealth:
     Exposes health if the service has a `health()` method.
     Otherwise, defaults to HEALTHY.
     """
+    from app.kernel.uptime import KernelUptime
+    uptime_seconds = KernelUptime.seconds()
+    base = {"uptime_seconds": uptime_seconds} if uptime_seconds > 0 else {}
     if hasattr(service, "health") and callable(service.health):
         try:
             import inspect
             if inspect.iscoroutinefunction(service.health):
-                # We can't await inside a sync health method, but we can check if it returns a coroutine.
-                # Since health check here is synchronous, we handle potential async health methods by warning.
                 return SubsystemHealth(
                     name=name,
                     status=HealthStatus.WARNING,
-                    message="Service health checker is asynchronous; sync sweep returned warning."
+                    message="Service health checker is asynchronous; sync sweep returned warning.",
+                    **base,
                 )
             res = service.health()
             if inspect.iscoroutine(res):
@@ -156,9 +166,11 @@ def check_service_health(name: str, service: Any) -> SubsystemHealth:
                 return SubsystemHealth(
                     name=name,
                     status=HealthStatus.WARNING,
-                    message="Service health checker returned a coroutine (asynchronous); sync sweep returned warning."
+                    message="Service health checker returned a coroutine (asynchronous); sync sweep returned warning.",
+                    **base,
                 )
             if isinstance(res, SubsystemHealth):
+                res.uptime_seconds = uptime_seconds or res.uptime_seconds
                 return res
             elif isinstance(res, dict):
                 raw = res.get("status", "HEALTHY")
@@ -168,22 +180,33 @@ def check_service_health(name: str, service: Any) -> SubsystemHealth:
                     name=name,
                     status=HealthStatus(raw),
                     message=res.get("message"),
-                    details=res.get("details", {})
+                    details=res.get("details", {}),
+                    latency_ms=res.get("latency_ms"),
+                    dependencies=res.get("dependencies", []),
+                    last_error=res.get("last_error"),
+                    ready=res.get("ready", True),
+                    **base,
                 )
             elif isinstance(res, str):
                 return SubsystemHealth(
                     name=name,
-                    status=HealthStatus(res.upper())
+                    status=HealthStatus(res.upper()),
+                    **base,
                 )
         except Exception as e:
             return SubsystemHealth(
                 name=name,
                 status=HealthStatus.ERROR,
-                message=f"Subsystem diagnostic check failed: {str(e)}"
+                message=f"Subsystem diagnostic check failed: {str(e)}",
+                last_error=str(e),
+                ready=False,
+                **base,
             )
             
     return SubsystemHealth(
         name=name,
         status=HealthStatus.HEALTHY,
-        message="Service operational."
+        message="Service operational.",
+        ready=True,
+        **base,
     )

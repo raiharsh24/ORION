@@ -9,6 +9,7 @@ from app.kernel.kernel import FridayKernel
 from app.kernel.state import KernelState
 from app.events.events import FridayEvent
 from app.core.config import settings
+from app.core.metrics import get_metrics
 
 router = APIRouter()
 
@@ -163,6 +164,7 @@ async def generate_system_events():
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    get_metrics().record_websocket_connect()
 
     kernel = FridayKernel.get_instance()
     event_bus = kernel.get_service("event_bus")
@@ -210,6 +212,7 @@ async def websocket_endpoint(websocket: WebSocket):
         sender_task.cancel()
         ticker_task.cancel()
         event_bus.unsubscribe("*", handler)
+        get_metrics().record_websocket_disconnect()
 
 @router.get("/events")
 async def sse_endpoint():

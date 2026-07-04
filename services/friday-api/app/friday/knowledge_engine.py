@@ -76,7 +76,7 @@ class KnowledgeManager:
             if inspect.iscoroutinefunction(self._event_bus.publish):
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
+                    self._event_bus.publish_background(event)
                 except RuntimeError:
                     asyncio.run(self._event_bus.publish(event))
             else:

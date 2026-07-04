@@ -40,3 +40,7 @@ class WebSocketAudioTransport(AudioStreamTransport):
         if not self._closed:
             logger.info("WebSocketAudioTransport: closing transport.")
             self._closed = True
+            try:
+                await self._websocket.close(code=1000)
+            except Exception:
+                pass

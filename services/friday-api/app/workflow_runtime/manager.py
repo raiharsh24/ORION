@@ -292,6 +292,21 @@ class WorkflowRuntimeManager:
         logger.info(f"Recovered {len(incomplete)} incomplete workflows")
         return len(incomplete)
 
+    async def shutdown(self) -> None:
+        """Cancel all active workflow runs and clean up state."""
+        logger.info(f"Shutting down WorkflowRuntimeManager with {len(self._active_runs)} active runs")
+        for wf_id, task in list(self._active_runs.items()):
+            if not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(task, timeout=5.0)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
+            self._active_runs.pop(wf_id, None)
+        self._active_workflows.clear()
+        self._start_times.clear()
+        logger.info("WorkflowRuntimeManager shutdown complete")
+
     def health(self) -> Dict:
         return {
             "status": "HEALTHY",

@@ -19,7 +19,7 @@ if not FRIDAY_SECRET_KEY_STR:
     FRIDAY_SECRET_KEY_STR = os.getenv("FRIDAY_SECRET_KEY")
 
 if not FRIDAY_SECRET_KEY_STR:
-    FRIDAY_SECRET_KEY_STR = "dummy-friday-system-key-32-chars-long-standard"
+    FRIDAY_SECRET_KEY_STR = ""
 
 FRIDAY_SECRET_KEY = FRIDAY_SECRET_KEY_STR.encode("utf-8")
 

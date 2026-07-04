@@ -8,6 +8,8 @@ from loguru import logger
 request_id_var = contextvars.ContextVar("request_id", default=None)
 session_id_var = contextvars.ContextVar("session_id", default=None)
 correlation_id_var = contextvars.ContextVar("correlation_id", default=None)
+mission_id_var = contextvars.ContextVar("mission_id", default=None)
+user_id_var = contextvars.ContextVar("user_id", default=None)
 
 class FridayTelemetryLogger:
     """
@@ -18,7 +20,9 @@ class FridayTelemetryLogger:
     def set_trace_context(
         request_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        correlation_id: Optional[str] = None
+        correlation_id: Optional[str] = None,
+        mission_id: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> None:
         """Sets tracking correlation context values."""
         if request_id:
@@ -27,6 +31,10 @@ class FridayTelemetryLogger:
             session_id_var.set(session_id)
         if correlation_id:
             correlation_id_var.set(correlation_id)
+        if mission_id:
+            mission_id_var.set(mission_id)
+        if user_id:
+            user_id_var.set(user_id)
 
     @staticmethod
     def get_trace_context() -> Dict[str, Optional[str]]:
@@ -34,7 +42,9 @@ class FridayTelemetryLogger:
         return {
             "request_id": request_id_var.get(),
             "session_id": session_id_var.get(),
-            "correlation_id": correlation_id_var.get()
+            "correlation_id": correlation_id_var.get(),
+            "mission_id": mission_id_var.get(),
+            "user_id": user_id_var.get(),
         }
 
     @staticmethod
@@ -43,6 +53,8 @@ class FridayTelemetryLogger:
         request_id_var.set(None)
         session_id_var.set(None)
         correlation_id_var.set(None)
+        mission_id_var.set(None)
+        user_id_var.set(None)
 
     @staticmethod
     def log(level: str, module: str, message: str, **kwargs: Any) -> None:
@@ -53,6 +65,8 @@ class FridayTelemetryLogger:
             "request_id": context["request_id"],
             "session_id": context["session_id"],
             "correlation_id": context["correlation_id"],
+            "mission_id": context["mission_id"],
+            "user_id": context["user_id"],
             **kwargs
         }
         logger.bind(**log_data).log(level.upper(), message)

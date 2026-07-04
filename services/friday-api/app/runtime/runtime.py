@@ -132,6 +132,20 @@ class MissionRuntime:
     async def archive(self, mission_id: str) -> bool:
         return await self._orchestrator.archive_mission(mission_id)
 
+    async def shutdown(self) -> None:
+        """Cancel all missions, drain queue, and reset state."""
+        from loguru import logger
+        logger.info("Shutting down MissionRuntime...")
+        for mission in self._orchestrator.list_missions():
+            if mission.status in ("created", "planning", "ready", "running", "recovering"):
+                await self.cancel(mission.mission_id)
+        self._queue.stop_processing()
+        self._orchestrator._missions.clear()
+        self._orchestrator.telemetry.reset()
+        self._orchestrator.metrics.reset()
+        self._store = MissionStore()
+        logger.info("MissionRuntime shutdown complete")
+
     def get_mission(self, mission_id: str) -> Optional[Mission]:
         return self._orchestrator.get_mission(mission_id)
 

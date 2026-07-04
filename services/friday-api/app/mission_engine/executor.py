@@ -20,6 +20,8 @@ from app.mission_engine.mission import MissionStore
 from app.mission_engine.checkpoint import CheckpointManager
 from app.mission_engine.result import build_mission_result
 from app.mission_engine.planner import MissionPlanner
+from app.runtime.scheduler import AdaptiveScheduler
+from app.runtime.monitor import ExecutionMonitor
 
 
 class MissionExecutor:
@@ -30,12 +32,18 @@ class MissionExecutor:
         checkpoint_manager: CheckpointManager,
         planner: MissionPlanner,
         event_bus: Optional[EventBus] = None,
+        recovery_policies: Optional[Any] = None,
+        scheduler: Optional[AdaptiveScheduler] = None,
+        monitor: Optional[ExecutionMonitor] = None,
     ) -> None:
         self._workflow_executor = workflow_executor
         self._store = store
         self._checkpoints = checkpoint_manager
         self._planner = planner
         self._event_bus = event_bus
+        self._recovery_policies = recovery_policies
+        self._scheduler = scheduler
+        self._monitor = monitor
         self._running_tasks: Dict[str, asyncio.Task] = {}
         self._workflow_graphs: Dict[str, WorkflowGraph] = {}
         self._cancellation_tokens: Dict[str, CancellationToken] = {}
@@ -46,6 +54,40 @@ class MissionExecutor:
         self._execution_count = 0
         self._failure_count = 0
         self._total_latency_ms = 0.0
+        self._revision_count = 0
+
+    async def _try_revision(
+        self,
+        mission_id: str,
+        failed_workflow_id: str,
+        error: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Attempts dynamic plan revision when a workflow fails.
+
+        Uses RecoveryPolicies if configured, otherwise returns None.
+        Never restarts the whole mission — only re-plans remaining work.
+        """
+        if not self._recovery_policies:
+            return None
+
+        recovery_ctx = {
+            "mission_id": mission_id,
+            "workflow_id": failed_workflow_id,
+            "error": error,
+            "tool_name": (context or {}).get("tool_name", failed_workflow_id),
+            "completed_workflows": list(self._completed_workflows.get(mission_id, set())),
+            "failed_workflows": list(self._failed_workflows.get(mission_id, set())),
+        }
+
+        attempt = await self._recovery_policies.recover(mission_id, recovery_ctx)
+        if attempt.success:
+            self._revision_count += 1
+            return {f"{failed_workflow_id}_retry": {
+                "status": "recovered",
+                "strategy": attempt.strategy,
+            }}
+        return None
 
     def register_workflow_graph(self, wf_id: str, graph: WorkflowGraph) -> None:
         self._workflow_graphs[wf_id] = graph
@@ -146,8 +188,9 @@ class MissionExecutor:
         workflow_order = self._planner.plan_sequential(mission, self._workflow_graphs)
         workflow_results: Dict[str, Any] = {}
 
+        idx = 0
         try:
-            for wf_id in workflow_order:
+            while idx < len(workflow_order):
                 if token.cancelled:
                     mission = self._store.get(mission_id)
                     if mission:
@@ -161,8 +204,11 @@ class MissionExecutor:
                     self._telemetry[mission_id].cancel_count += 1
                     return self._finalize(mission_id, MissionState.CANCELLED, workflow_results, ctx, t0)
 
+                wf_id = workflow_order[idx]
+
                 if mission_id in self._failed_workflows and wf_id in self._failed_workflows[mission_id]:
                     workflow_results[wf_id] = {"status": "skipped", "error": "Skipped due to prior failure"}
+                    idx += 1
                     continue
 
                 graph = self._workflow_graphs.get(wf_id)
@@ -175,13 +221,21 @@ class MissionExecutor:
                         completed_workflows=len(self._completed_workflows[mission_id]),
                         total_workflows=len(mission.workflow_ids),
                     ))
+
+                    revision_result = await self._try_revision(mission_id, wf_id, "workflow_graph_not_found")
+                    if revision_result:
+                        workflow_results.update(revision_result)
+                        idx += 1
+                        continue
                     break
 
+                wf_t0 = time.time()
                 wf_result = await self._workflow_executor.execute(
                     graph=graph,
                     global_timeout=300.0,
                     cancellation_token=token,
                 )
+                wf_latency = (time.time() - wf_t0) * 1000
 
                 if wf_result.status == WorkflowStatus.COMPLETED:
                     self._completed_workflows[mission_id].add(wf_id)
@@ -197,12 +251,30 @@ class MissionExecutor:
                         if en.output is not None:
                             ctx.node_outputs[f"{wf_id}.{nid}"] = en.output
                             ctx.shared_data[nid] = en.output
+                    if self._monitor:
+                        self._monitor.observe_latency(mission_id, wf_id, wf_latency)
                 else:
                     self._failed_workflows[mission_id].add(wf_id)
                     workflow_results[wf_id] = {
                         "status": "failed",
                         "error": wf_result.error or f"Workflow '{wf_id}' failed",
                     }
+                    if self._monitor:
+                        self._monitor.observe_tool(
+                            mission_id, wf_id, wf_id,
+                            wf_latency, success=False,
+                        )
+
+                    revision_result = await self._try_revision(
+                        mission_id, wf_id,
+                        wf_result.error or f"Workflow '{wf_id}' failed",
+                        {"tool_name": wf_id},
+                    )
+                    if revision_result:
+                        workflow_results.update(revision_result)
+                        idx += 1
+                        continue
+
                     self._publish(MissionFailed(
                         mission_id=mission_id, name=mission.name,
                         error=wf_result.error or f"Workflow '{wf_id}' failed",
@@ -235,6 +307,29 @@ class MissionExecutor:
                     failed=progress.failed,
                     remaining=progress.remaining,
                 ))
+
+                idx += 1
+
+                if self._scheduler and idx < len(workflow_order):
+                    pending = workflow_order[idx:]
+                    scheduler_ctx = {}
+                    if self._monitor:
+                        scheduler_ctx["latency_map"] = self._monitor.get_latency_map()
+                    scheduler_ctx["priority_map"] = {
+                        wf: mission.priority.value
+                        for wf in pending
+                    }
+                    decision = await self._scheduler.reorder(
+                        mission_id=mission_id,
+                        pending_workflows=pending,
+                        completed_workflows=self._completed_workflows.get(mission_id, set()),
+                        failed_workflows=self._failed_workflows.get(mission_id, set()),
+                        context=scheduler_ctx,
+                    )
+                    if decision.workflow_order:
+                        workflow_order = (
+                            workflow_order[:idx] + decision.workflow_order
+                        )
 
         except asyncio.CancelledError:
             self._store.update_state(mission_id, MissionState.CANCELLED)
@@ -498,7 +593,7 @@ class MissionExecutor:
                 pass
 
     def health(self) -> Dict[str, Any]:
-        return {
+        result: Dict[str, Any] = {
             "status": "HEALTHY",
             "execution_count": self._execution_count,
             "failure_count": self._failure_count,
@@ -507,4 +602,10 @@ class MissionExecutor:
             "average_latency_ms": round(
                 self._total_latency_ms / max(self._execution_count, 1), 2
             ),
+            "revision_count": self._revision_count,
         }
+        if self._scheduler:
+            result["scheduler_stats"] = self._scheduler.get_stats()
+        if self._monitor:
+            result["monitor_stats"] = self._monitor.get_stats()
+        return result

@@ -185,7 +185,14 @@ class DesktopAutomationService(BaseCapability):
                         await event_bus.publish(FridayEvent("MissionUpdated", payload))
 
                     # Sensitive Gate Checks
-                    is_sensitive = action_name in ["open_application", "close_application", "write_clipboard"]
+                    sensitive_actions = {
+                        "open_application", "close_application", "write_clipboard",
+                        "mouse_click", "mouse_double_click", "mouse_right_click",
+                        "mouse_drag_drop", "keyboard_type", "keyboard_shortcut",
+                        "key_press", "window_focus", "window_resize",
+                        "close_application", "file_explorer_open",
+                    }
+                    is_sensitive = action_name in sensitive_actions
                     if is_sensitive:
                         # Enter human-in-the-loop pending approval state
                         mission.metadata["pending_confirmation"] = {
@@ -336,7 +343,76 @@ class DesktopAutomationService(BaseCapability):
                 raise ValueError("url parameter is missing.")
             webbrowser.open(url)
             return True
-            
+
+        elif name == "mouse_move":
+            return await desktop.input_controller.mouse_move(
+                params.get("x", 0), params.get("y", 0)
+            )
+
+        elif name == "mouse_click":
+            return await desktop.input_controller.mouse_click(
+                params.get("button", "left")
+            )
+
+        elif name == "mouse_double_click":
+            return await desktop.input_controller.mouse_double_click(
+                params.get("button", "left")
+            )
+
+        elif name == "mouse_right_click":
+            return await desktop.input_controller.mouse_right_click()
+
+        elif name == "mouse_drag_drop":
+            return await desktop.input_controller.mouse_drag_drop(
+                params.get("start_x", 0), params.get("start_y", 0),
+                params.get("end_x", 0), params.get("end_y", 0),
+            )
+
+        elif name == "keyboard_type":
+            return await desktop.input_controller.keyboard_type(
+                params.get("text", "")
+            )
+
+        elif name == "keyboard_shortcut":
+            return await desktop.input_controller.keyboard_shortcut(
+                params.get("combo", "")
+            )
+
+        elif name == "key_press":
+            return await desktop.input_controller.key_press(
+                params.get("key", "")
+            )
+
+        elif name == "window_focus":
+            res = await desktop.window_focus(params.get("window_name", ""))
+            return res.get("success", False)
+
+        elif name == "window_resize":
+            res = await desktop.window_resize(
+                params.get("window_id", ""),
+                params.get("width", 800),
+                params.get("height", 600),
+            )
+            return res.get("success", False)
+
+        elif name == "file_explorer_open":
+            res = await desktop.file_explorer_open(params.get("folder_path", ""))
+            return res.get("success", False)
+
+        elif name == "capture_window":
+            img = await desktop.screenshot_handler.capture_active_window(
+                params.get("save_path")
+            )
+            return len(img) > 0
+
+        elif name == "capture_region":
+            img = await desktop.screenshot_handler.capture_region(
+                params.get("x", 0), params.get("y", 0),
+                params.get("width", 100), params.get("height", 100),
+                params.get("save_path"),
+            )
+            return len(img) > 0
+
         else:
             raise ValueError(f"Unknown desktop automation action keyword: {name}")
 

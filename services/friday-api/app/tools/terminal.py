@@ -20,7 +20,9 @@ class TerminalTool(BaseTool):
         "rm", "rmdir", "mkfs", "dd", "shutdown", "reboot", "kill",
         "killall", "chmod", "chown", "sudo", "su", "curl", "wget",
         "nc", "netcat", "python", "python3", "bash", "sh", "zsh",
-        "eval", "exec"
+        "eval", "exec", "ssh", "scp", "rsync", "telnet", "ftp",
+        "socat", "nmap", "iptables", "ufw", "passwd", "adduser",
+        "useradd", "usermod", "deluser", "userdel", "groupadd",
     }
 
     def __init__(self, workspace_root: str | None = None) -> None:
@@ -84,8 +86,10 @@ class TerminalTool(BaseTool):
         try:
             sanitized_env = {
                 "PATH": "/usr/local/bin:/usr/bin:/bin",
-                "HOME": self.workspace_root
+                "HOME": self.workspace_root,
             }
+            for key in ("LD_PRELOAD", "LD_LIBRARY_PATH", "PYTHONPATH", "PERL5LIB"):
+                sanitized_env.pop(key, None)
 
             import sys
             kwargs = {}

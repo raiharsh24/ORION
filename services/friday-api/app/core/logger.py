@@ -46,12 +46,16 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         request_id = request.headers.get("X-Request-ID") or request.headers.get("request-id") or str(uuid.uuid4())
         session_id = request.headers.get("X-Session-ID") or request.headers.get("session-id") or str(uuid.uuid4())
         correlation_id = request.headers.get("X-Correlation-ID") or request.headers.get("correlation-id") or str(uuid.uuid4())
+        mission_id = request.headers.get("X-Mission-ID") or request.headers.get("mission-id") or None
+        user_id = request.headers.get("X-User-ID") or request.headers.get("user-id") or None
         
         # Populate context variables
         FridayTelemetryLogger.set_trace_context(
             request_id=request_id,
             session_id=session_id,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
+            mission_id=mission_id,
+            user_id=user_id
         )
         
         FridayTelemetryLogger.info(

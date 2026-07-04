@@ -34,6 +34,8 @@ class IntentAnalyzer:
             return "Tool Invocation"
         if legacy_intent == IntentType.SEARCH_MEMORY:
             return "Memory Lookup"
+        if legacy_intent == IntentType.VISION_ACTION:
+            return "Vision Action"
             
         # Regex scans
         for category, regex in self.patterns.items():
@@ -54,6 +56,8 @@ class GoalExtractor:
             return f"Execute file system operations for: '{query_strip}'"
         if intent == "Terminal Action":
             return f"Run terminal command: '{query_strip}'"
+        if intent == "Vision Action":
+            return f"Capture and analyze screen or image: '{query_strip}'"
         return f"Process action query: '{query_strip}'"
 
 class CapabilityResolver:
@@ -70,7 +74,8 @@ class CapabilityResolver:
             "Project Management": ["Memory", "Missions"],
             "Workflow Creation": ["Workflows"],
             "Mission Creation": ["Missions"],
-            "Tool Invocation": ["Tools"]
+            "Tool Invocation": ["Tools"],
+            "Vision Action": ["Desktop", "Knowledge"]
         }
         required = mapping.get(intent, [])
         

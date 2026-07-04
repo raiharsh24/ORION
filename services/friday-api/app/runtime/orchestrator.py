@@ -14,6 +14,7 @@ from app.runtime.metrics import RuntimeMetrics
 from app.runtime.events import (
     MissionStarted, MissionPaused, MissionResumed,
     MissionCompleted, MissionFailed, MissionRecovered, MissionArchived,
+    MissionLogGenerated, MissionStepStarted, MissionStepCompleted,
 )
 from app.runtime.persistence import MissionStore
 
@@ -92,53 +93,134 @@ class Orchestrator:
         return mission
 
     async def run_lifecycle(self, mission: Mission) -> ExecutionResult:
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "lifecycle", "INFO",
+            f"Starting lifecycle for mission {mission.mission_id[:8]}",
+        ))
+
         mission.set_status("planning")
         planning_stage = mission.add_stage("planning")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "planning", "INFO",
+            f"Planning phase started for: {mission.user_request[:80]}",
+        ))
         plan = await self._run_planning(mission)
         planning_stage.completed_at = datetime.now(timezone.utc)
         planning_stage.status = "completed" if plan is not None else "failed"
         if plan is None:
             planning_stage.error = "Planning failed — no plan generated"
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "planning", "ERROR",
+                "Planning failed — no plan generated",
+            ))
+        else:
+            step_count = getattr(plan, "step_count", 0)
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "planning", "INFO",
+                f"Planning completed with {step_count} steps",
+            ))
 
         mission.add_stage("capability_resolution")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "capability_resolution", "INFO",
+            "Resolving capabilities...",
+        ))
         capabilities = await self._run_capability_resolution(mission, plan)
         if capabilities:
             mission.complete_stage("capability_resolution")
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "capability_resolution", "INFO",
+                f"Resolved {len(capabilities)} capabilities",
+            ))
         else:
             mission.complete_stage("capability_resolution",
                                     error="No capabilities resolved")
 
         mission.add_stage("tool_selection")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "tool_selection", "INFO",
+            "Selecting tools for execution...",
+        ))
         selection_result = await self._run_tool_selection(mission, capabilities)
         if selection_result is not None:
             mission.complete_stage("tool_selection")
             tool_ids = getattr(selection_result, "tool_ids", [])
             if tool_ids:
                 mission.metadata["tool_ids"] = tool_ids
+                self._publish_event(MissionLogGenerated(
+                    mission.mission_id, "tool_selection", "INFO",
+                    f"Selected tools: {tool_ids}",
+                ))
         else:
             mission.complete_stage("tool_selection",
                                     error="No tools selected")
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "tool_selection", "WARN",
+                "No tools selected",
+            ))
 
         mission.add_stage("workflow_generation")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "workflow_generation", "INFO",
+            "Generating workflow graph...",
+        ))
         workflow_graph = await self._run_workflow_generation(mission, plan, capabilities)
         if workflow_graph is not None:
             mission.complete_stage("workflow_generation")
             mission.metadata["workflow_graph_id"] = getattr(workflow_graph, "execution_id", None)
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "workflow_generation", "INFO",
+                "Workflow graph generated",
+            ))
         else:
             mission.complete_stage("workflow_generation",
                                     error="No workflow generated")
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "workflow_generation", "WARN",
+                "No workflow generated",
+            ))
+        self._store.save_checkpoint(mission.mission_id, "workflow_generation",
+                                     {"stages_completed": len(mission.stages)})
 
         execution_stage = mission.add_stage("execution")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "execution", "INFO",
+            "Execution phase started",
+        ))
+        self._publish_event(MissionStepStarted(
+            mission.mission_id, "execution",
+            len(mission.stages) - 1,
+        ))
         result = await self._executor.execute_mission(
             mission, plan=plan, selection_result=selection_result,
         )
+        self._store.save_checkpoint(mission.mission_id, "execution",
+                                     {"success": result.success,
+                                      "stages_completed": len(mission.stages)})
+        self._publish_event(MissionStepCompleted(
+            mission.mission_id, "execution",
+            len(mission.stages) - 1,
+            result.success, result.total_duration_ms,
+        ))
         if result.success:
             mission.complete_stage("execution")
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "execution", "INFO",
+                f"Execution completed in {result.total_duration_ms:.0f}ms",
+            ))
         else:
             mission.complete_stage("execution", error=result.error)
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "execution", "ERROR",
+                f"Execution failed: {result.error}",
+            ))
 
         if not result.success:
             self._supervisor.record_failure(mission.mission_id)
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "recovery", "WARN",
+                f"Attempting recovery (failure #{self._supervisor.recovery_count})",
+            ))
             recovery_action = await self._supervisor.recover_failure(
                 mission.mission_id, result.error or "Unknown error",
             )
@@ -149,10 +231,25 @@ class Orchestrator:
                     mission.mission_id,
                     self._supervisor.recovery_count,
                 ))
+                self._publish_event(MissionLogGenerated(
+                    mission.mission_id, "recovery", "INFO",
+                    "Recovery succeeded",
+                ))
+            else:
+                self._publish_event(MissionLogGenerated(
+                    mission.mission_id, "recovery", "ERROR",
+                    f"Recovery failed: {recovery_action.result or recovery_action.status}",
+                ))
 
         mission.add_stage("reflection")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "reflection", "INFO",
+            "Running reflection...",
+        ))
         tel = self._telemetry.get_mission(mission.mission_id)
         report = await self._reflection.reflect(mission, result, tel)
+        self._store.save_checkpoint(mission.mission_id, "reflection",
+                                     {"stages_completed": len(mission.stages)})
         mission.complete_stage("reflection")
         if report.bottlenecks:
             mission.metadata["bottlenecks"] = report.bottlenecks
@@ -164,7 +261,13 @@ class Orchestrator:
             ]
 
         mission.add_stage("memory_update")
+        self._publish_event(MissionLogGenerated(
+            mission.mission_id, "memory_update", "INFO",
+            "Updating memory with mission results...",
+        ))
         await self._run_memory_update(mission, report)
+        self._store.save_checkpoint(mission.mission_id, "memory_update",
+                                     {"stages_completed": len(mission.stages)})
         mission.complete_stage("memory_update")
 
         if result.success:
@@ -174,11 +277,19 @@ class Orchestrator:
                 mission.mission_id, result.total_duration_ms,
                 result.stages_completed,
             ))
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "lifecycle", "INFO",
+                f"Mission completed successfully in {result.total_duration_ms:.0f}ms",
+            ))
         else:
             mission.set_status("failed")
             self._metrics.record_mission_failed()
             self._publish_event(MissionFailed(
                 mission.mission_id, "execution", result.error or "Unknown",
+            ))
+            self._publish_event(MissionLogGenerated(
+                mission.mission_id, "lifecycle", "ERROR",
+                f"Mission failed: {result.error or 'Unknown error'}",
             ))
 
         self._telemetry.record_completion(
@@ -429,6 +540,9 @@ class Orchestrator:
             mission.set_status("archived")
             self._store.save_mission(mission)
             self._publish_event(MissionArchived(mission_id))
+            self._telemetry.remove_mission(mission_id)
+            self._executor.remove_mission(mission_id)
+            self._missions.pop(mission_id, None)
             return True
         return False
 
@@ -480,10 +594,7 @@ class Orchestrator:
 
     def _publish_event(self, event: Any) -> None:
         if self._event_bus:
-            import asyncio
             try:
-                loop = asyncio.get_running_loop()
-                if loop.is_running():
-                    loop.create_task(self._event_bus.publish(event))
+                self._event_bus.publish_background(event)
             except RuntimeError:
                 pass

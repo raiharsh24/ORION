@@ -1,4 +1,5 @@
 import time
+import hashlib
 from typing import Dict, Any, List, Optional
 from loguru import logger
 
@@ -12,7 +13,7 @@ from app.memory.retriever import MemoryRetriever
 from app.memory.events import (
     MemoryCreated, MemoryUpdated, MemoryExpired,
     SessionSummarized, ProjectUpdated, UserPreferenceChanged,
-    MemoryError, MemoryRetrieved
+    MemoryError, MemoryRetrieved, MemoryCleanupCompleted,
 )
 from app.events.events import FridayEvent
 
@@ -109,7 +110,7 @@ class MemoryManager:
             if inspect.iscoroutinefunction(self._event_bus.publish):
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(event))
+                    self._event_bus.publish_background(event)
                 except RuntimeError:
                     asyncio.run(self._event_bus.publish(event))
             else:
@@ -127,18 +128,26 @@ class MemoryManager:
     ) -> List[MemoryEntry]:
         """
         Gathers memory objects from all memory layers and performs deterministic ranking.
+        Includes mission/project/preference affinity scoring.
         """
         start_time = time.time()
         user_mem = self.get_user_memory(user_id)
         proj_mem = self.get_project_memory(project_id) if project_id else None
         sess_mem = self.get_or_create_session(session_id) if session_id else None
 
+        affinity_context = {"user_id": user_id}
+        if project_id:
+            affinity_context["project_id"] = project_id
+        if session_id:
+            affinity_context["session_id"] = session_id
+
         results = self._retriever.retrieve(
             query=query,
             user_memory=user_mem,
             project_memory=proj_mem,
             session_memory=sess_mem,
-            limit=limit
+            limit=limit,
+            affinity_context=affinity_context,
         )
 
         latency = (time.time() - start_time) * 1000.0  # in ms
@@ -155,6 +164,138 @@ class MemoryManager:
         return results
 
     # ==========================================
+    # Cleanup & Maintenance
+    # ==========================================
+    def run_cleanup(
+        self,
+        ttl_days: int = 30,
+        min_importance: int = 3,
+        max_session_messages: int = 500,
+    ) -> Dict[str, int]:
+        """Runs TTL expiration, session truncation, and deduplication.
+
+        Returns a dict of cleanup counts.
+        """
+        now = time.time()
+        ttl_seconds = ttl_days * 86400
+        expired = 0
+        truncated = 0
+        deduped = 0
+        consolidated = 0
+
+        for key in list(self._store.keys()):
+            # TTL-based expiration for consolidated/preference entries
+            if key.startswith("consolidated:") or key.startswith("learning:"):
+                data = self._store.get(key)
+                if not data:
+                    continue
+                try:
+                    entry = MemorySerializer.deserialize_entry(data)
+                except Exception:
+                    continue
+                age = now - entry.timestamp
+                if age > ttl_seconds:
+                    self._store.delete(key)
+                    expired += 1
+                elif entry.expiration and entry.expiration < now:
+                    self._store.delete(key)
+                    expired += 1
+
+            # Session message truncation
+            if key.startswith("session:"):
+                data = self._store.get(key)
+                if not data:
+                    continue
+                try:
+                    session = MemorySerializer.deserialize_session(data)
+                except Exception:
+                    continue
+
+                if len(session.messages) > max_session_messages:
+                    kept = session.messages[-max_session_messages:]
+                    # Summarize the dropped portion
+                    dropped = session.messages[:-max_session_messages]
+                    if dropped:
+                        session.summary = (
+                            f"{session.summary or ''} "
+                            f"[Previous {len(dropped)} messages summarized]"
+                        ).strip()
+                    session.messages = kept
+                    self.save_session(session)
+                    truncated += 1
+
+                # Summarize sessions without summaries
+                if not session.summary or session.summary == "Conversation session initialized.":
+                    if len(session.messages) >= 4:
+                        user_msgs = sum(1 for m in session.messages if m.role == "user")
+                        asst_msgs = sum(1 for m in session.messages if m.role == "assistant")
+                        last_topic = ""
+                        for m in reversed(session.messages):
+                            if m.role == "user":
+                                last_topic = m.content[:100]
+                                break
+                        session.summary = (
+                            f"Summary: {len(session.messages)} messages "
+                            f"({user_msgs} user, {asst_msgs} assistant). "
+                            f"Last user topic: {last_topic}."
+                        )
+                        self.save_session(session)
+                        consolidated += 1
+
+        # Deduplication within the same store prefix
+        seen_hashes: Dict[str, str] = {}
+        for key in list(self._store.keys()):
+            if key.startswith("consolidated:preference:"):
+                data = self._store.get(key)
+                if not data:
+                    continue
+                content_str = str(data.get("content", ""))[:100]
+                content_hash = hashlib.md5(content_str.encode()).hexdigest()
+                if content_hash in seen_hashes:
+                    self._store.delete(key)
+                    deduped += 1
+                else:
+                    seen_hashes[content_hash] = key
+
+        self._safe_publish(MemoryCleanupCompleted(
+            expired=expired,
+            truncated=truncated,
+            consolidated=consolidated,
+            deduped=deduped,
+        ))
+
+        logger.info(
+            f"MemoryCleanup: {expired} expired, {truncated} truncated, "
+            f"{consolidated} consolidated, {deduped} deduplicated"
+        )
+        return {
+            "expired": expired,
+            "truncated": truncated,
+            "consolidated": consolidated,
+            "deduped": deduped,
+        }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Returns storage statistics across all memory layers."""
+        keys = self._store.keys()
+        return {
+            "total_keys": len(keys),
+            "sessions": len([k for k in keys if k.startswith("session:")]),
+            "users": len([k for k in keys if k.startswith("user:")]),
+            "projects": len([k for k in keys if k.startswith("project:")]),
+            "episodic": len([k for k in keys if k.startswith("episodic:")]),
+            "consolidated": len([k for k in keys if k.startswith("consolidated:")]),
+            "learning": len([k for k in keys if k.startswith("learning:")]),
+            "graph_entities": len([k for k in keys if k.startswith("graph:entity:")]),
+            "graph_relations": len([k for k in keys if k.startswith("graph:relation:")]),
+            "retrieval_count": self.retrieval_count,
+            "retrieval_latency_ms": round(
+                self.retrieval_latency_sum / max(self.retrieval_count, 1), 2
+            ),
+            "errors_count": self.errors_count,
+        }
+
+    # ==========================================
     # Event Listener Callback Subscription Hooks
     # ==========================================
     def on_conversation_completed(self, event: FridayEvent) -> None:
@@ -166,9 +307,21 @@ class MemoryManager:
         logger.info(f"MemoryManager intercepted ConversationCompleted event for session {session_id}.")
         session = self.get_or_create_session(session_id)
         
-        # Calculate summary placeholder from message log length
+        # Generate contextual summary
         msg_count = len(session.messages)
-        summary = f"Summary: Completed conversation with {msg_count} turns."
+        user_msgs = sum(1 for m in session.messages if m.role == "user")
+        asst_msgs = sum(1 for m in session.messages if m.role == "assistant")
+        last_user_topic = ""
+        for m in reversed(session.messages):
+            if m.role == "user":
+                last_user_topic = m.content[:150]
+                break
+        
+        summary = (
+            f"Summary: Completed conversation with {msg_count} turns "
+            f"({user_msgs} user, {asst_msgs} assistant). "
+            f"Last user topic: {last_user_topic}."
+        )
         session.summary = summary
         self.save_session(session)
         

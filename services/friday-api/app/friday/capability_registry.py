@@ -90,6 +90,13 @@ class CapabilityRegistry:
                 description="Evaluate sandboxed python script commands.",
                 category="developer", permissions="Trusted",
                 supported_operations=["eval", "run"]
+            ),
+            CapabilityMetadata(
+                id="vision", name="Vision & Screen Understanding",
+                description="Capture screenshots, analyze images, extract text via OCR, and build screen context for UI understanding.",
+                category="system", permissions="Trusted",
+                supported_operations=["screenshot", "analyze", "ocr", "screen_context", "clipboard_image"],
+                timeout=60.0
             )
         ]
         for cap in builtins:

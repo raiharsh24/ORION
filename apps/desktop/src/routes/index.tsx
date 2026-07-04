@@ -7,6 +7,8 @@ import { ProjectsPage } from '../features/projects/pages/ProjectsPage';
 import { DeveloperPage } from '../features/developer/pages/DeveloperPage';
 import { PluginsPage } from '../features/plugins/pages/PluginsPage';
 import { SettingsPage } from '../features/settings/pages/SettingsPage';
+import { MissionCenterPage } from '../pages/MissionCenter/MissionCenterPage';
+import { CognitiveDashboardPage } from '../pages/CognitiveDashboard/CognitiveDashboardPage';
 
 export const router = createBrowserRouter([
   {
@@ -20,6 +22,14 @@ export const router = createBrowserRouter([
       {
         path: '/assistant',
         element: <AssistantPage />,
+      },
+      {
+        path: '/missions',
+        element: <MissionCenterPage />,
+      },
+      {
+        path: '/cognitive',
+        element: <CognitiveDashboardPage />,
       },
       {
         path: '/knowledge',

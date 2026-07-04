@@ -7,6 +7,7 @@ from app.kernel.kernel import FridayKernel
 from app.voice.vad import EnergyThresholdVAD
 from app.voice.wakeword import ThresholdWakeWordEngine
 from app.voice.events import WakeWordDetected, VoiceStarted, VoiceEnded
+from app.core.metrics import get_metrics
 
 MAX_RECORDING_DURATION_SECONDS = 15.0
 MAX_AUDIO_BUFFER_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -21,6 +22,7 @@ async def voice_websocket_endpoint(websocket: WebSocket):
     Handles graceful client disconnects, resource cleanups, and transition events.
     """
     await websocket.accept()
+    get_metrics().record_websocket_connect()
     logger.info("Voice WebSocket connection established.")
     
     # Resolve Kernel, EventBus, and VoiceOutputManager services
@@ -217,6 +219,7 @@ async def voice_websocket_endpoint(websocket: WebSocket):
         vad_engine.reset()
         if voice_output_manager:
             await voice_output_manager.shutdown()
+        get_metrics().record_websocket_disconnect()
         
         # Publish VoiceEnded if connection is terminated during an active session
         if session_state == "LISTENING" and session_id:

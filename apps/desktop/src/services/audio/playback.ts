@@ -1,4 +1,4 @@
-import { AudioDecoder } from './decoder';
+import type { AudioDecoder } from './decoder';
 import { AudioQueue } from './queue';
 
 export class PlaybackManager {

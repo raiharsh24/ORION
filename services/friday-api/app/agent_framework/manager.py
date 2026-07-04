@@ -97,7 +97,7 @@ class AgentManager:
                         key=key, value=str(value)[:200],
                         writer=writer, version=version,
                     )
-                    loop.create_task(self._event_bus.publish(event))
+                    self._event_bus.publish_background(event)
             except RuntimeError:
                 pass
 
@@ -257,13 +257,10 @@ class AgentManager:
     def _publish_event(self, topic: str, data: Dict[str, Any]) -> None:
         if self._event_bus is not None:
             try:
-                import asyncio
                 try:
-                    loop = asyncio.get_running_loop()
-                    if loop.is_running():
-                        from app.events.events import FridayEvent
-                        event = FridayEvent(topic=topic, data=data)
-                        loop.create_task(self._event_bus.publish(event))
+                    from app.events.events import FridayEvent
+                    event = FridayEvent(topic=topic, data=data)
+                    self._event_bus.publish_background(event)
                 except RuntimeError:
                     pass
             except Exception:

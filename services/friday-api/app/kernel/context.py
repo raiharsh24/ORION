@@ -23,6 +23,7 @@ class SystemMetadata(BaseModel):
     version: str = "0.2.0"
     os_platform: str = "linux"
     debug_mode: bool = True
+    environment: str = "development"
 
 class FridayKernelContext(BaseModel):
     """

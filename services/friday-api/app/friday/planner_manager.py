@@ -41,28 +41,24 @@ class PlannerManager:
     def _safe_publish(self, event: FridayEvent) -> None:
         if not self._event_bus:
             return
-        import asyncio
-        import inspect
         try:
-            if inspect.iscoroutinefunction(self._event_bus.publish):
-                try:
-                    loop = asyncio.get_running_loop()
-                    task = loop.create_task(self._event_bus.publish(event))
-                    self._pending_tasks.add(task)
-                    task.add_done_callback(self._pending_tasks.discard)
-                except RuntimeError:
-                    asyncio.run(self._event_bus.publish(event))
-            else:
-                self._event_bus.publish(event)
+            self._event_bus.publish_background(event)
+        except RuntimeError:
+            try:
+                import asyncio
+                asyncio.run(self._event_bus.publish(event))
+            except Exception:
+                pass
         except Exception as e:
             logger.error(f"Failed to publish event to EventBus: {str(e)}")
 
     async def shutdown(self) -> None:
-        for task in list(self._pending_tasks):
-            task.cancel()
         if self._pending_tasks:
+            for task in list(self._pending_tasks):
+                task.cancel()
+            import asyncio
             await asyncio.wait(self._pending_tasks, timeout=2.0)
-        self._pending_tasks.clear()
+            self._pending_tasks.clear()
 
     async def create_plan(self, prompt: str, legacy_intent: Optional[IntentType] = None) -> ExecutionPlan:
         """
@@ -151,6 +147,9 @@ class PlannerManager:
                 elif legacy_intent == IntentType.SEARCH_MEMORY or intent == "Memory Lookup":
                     plan.tool_name = "knowledge.search"
                     plan.args = {"query": prompt}
+                elif legacy_intent == IntentType.VISION_ACTION or intent == "Vision Action":
+                    plan.tool_name = "vision.screen_context"
+                    plan.args = {"prompt": prompt}
                 elif "clipboard" in prompt.lower():
                     plan.tool_name = "clipboard"
                     op = "copy" if "copy" in prompt.lower() else "paste"

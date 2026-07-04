@@ -315,12 +315,9 @@ class VoiceRuntime:
                 cb(event)
             except Exception:
                 pass
-        if self._event_bus and hasattr(self._event_bus, "publish"):
+        if self._event_bus and hasattr(self._event_bus, "publish_background"):
             try:
-                import asyncio
-                loop = asyncio.get_running_loop()
-                if loop.is_running():
-                    loop.create_task(self._event_bus.publish(event))
+                self._event_bus.publish_background(event)
             except RuntimeError:
                 pass
 

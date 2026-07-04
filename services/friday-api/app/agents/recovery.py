@@ -86,10 +86,12 @@ class CircuitBreaker:
             if self._event_bus:
                 evt = AgentCircuitBreakerTripped(self._name, self._failure_count)
                 try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(self._event_bus.publish(evt))
+                    self._event_bus.publish_background(evt)
                 except RuntimeError:
-                    asyncio.run(self._event_bus.publish(evt))
+                    try:
+                        asyncio.run(self._event_bus.publish(evt))
+                    except Exception:
+                        pass
                 except Exception:
                     pass
 
@@ -174,10 +176,12 @@ class DeadLetterQueue:
         if self._event_bus:
             evt = AgentDeadLetterMessage(message.message_id, error)
             try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._event_bus.publish(evt))
+                self._event_bus.publish_background(evt)
             except RuntimeError:
-                asyncio.run(self._event_bus.publish(evt))
+                try:
+                    asyncio.run(self._event_bus.publish(evt))
+                except Exception:
+                    pass
 
     async def retry(self, index: int = -1) -> Optional[AgentMessage]:
         if not self._entries:
