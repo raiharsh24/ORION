@@ -93,6 +93,8 @@ class FridayKernel:
         """
         Triggers the BootManager startup timeline and runs module lifecycles.
         """
+        from app.kernel.uptime import KernelUptime
+        KernelUptime.start()
         if self._state != KernelState.STOPPED and self._state != KernelState.ERROR:
             logger.warning(f"Kernel is already booted or booting. Current state: {self._state}")
             return
@@ -283,7 +285,7 @@ class FridayKernel:
         recovery_mgr_svc = self.get_service("recovery_manager")
         metrics_svc = self.get_service("metrics_collector")
         planning_svc = self.get_service("planning_engine")
-        runtime_svc = self.get_service("mission_runtime")
+        mission_runtime_svc = self.get_service("mission_runtime")
         
         p_health = check_service_health("planner", planner_svc) if planner_svc else SubsystemHealth(name="planner", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         k_health = check_service_health("knowledge", knowledge_svc) if knowledge_svc else SubsystemHealth(name="knowledge", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
@@ -336,9 +338,11 @@ class FridayKernel:
         r_health2 = check_service_health("recovery_manager", recovery_mgr_svc) if recovery_mgr_svc else SubsystemHealth(name="recovery_manager", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         m_health = check_service_health("metrics_collector", metrics_svc) if metrics_svc else SubsystemHealth(name="metrics_collector", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         pl_health = check_service_health("planning_engine", planning_svc) if planning_svc else SubsystemHealth(name="planning_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
-        rt_health = check_service_health("mission_runtime", runtime_svc) if runtime_svc else SubsystemHealth(name="mission_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        rt_health = check_service_health("mission_runtime", mission_runtime_svc) if mission_runtime_svc else SubsystemHealth(name="mission_runtime", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
+        vision_svc = self.get_service("vision_engine")
+        v_health = check_service_health("vision_engine", vision_svc) if vision_svc else SubsystemHealth(name="vision_engine", status=HealthStatus.UNKNOWN, message="Subsystem not registered")
         
-        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, w_health.status, mi_health.status, s_health.status, l_health.status, a_health.status, r_health.status, plugin_reg_health.status, plugin_loader_health.status, ia_health.status, sm_health.status, er_health.status, cr_health.status, ta_health.status, cv_health.status, cc_health.status, pa_health.status, po_health.status, utr_health.status, tse_health.status, tee_health.status, we_health.status, me_health.status, cr2_health.status, cres_health.status, pr_health.status, pm_health.status, ps_health.status, af_health.status, b_health.status, c_health.status, d_health2.status, p_health2.status, r_health2.status, m_health.status, pl_health.status, rt_health.status]
+        statuses = [p_health.status, k_health.status, memory_health.status, d_health.status, w_health.status, mi_health.status, s_health.status, l_health.status, a_health.status, r_health.status, plugin_reg_health.status, plugin_loader_health.status, ia_health.status, sm_health.status, er_health.status, cr_health.status, ta_health.status, cv_health.status, cc_health.status, pa_health.status, po_health.status, utr_health.status, tse_health.status, tee_health.status, we_health.status, me_health.status, cr2_health.status, cres_health.status, pr_health.status, pm_health.status, ps_health.status, af_health.status, b_health.status, c_health.status, d_health2.status, p_health2.status, r_health2.status, m_health.status, pl_health.status, rt_health.status, v_health.status]
         if HealthStatus.ERROR in statuses or self._state == KernelState.ERROR:
             overall = HealthStatus.ERROR
         elif HealthStatus.WARNING in statuses:
@@ -389,6 +393,7 @@ class FridayKernel:
         self._health_monitor.report_health("metrics_collector", m_health.status, m_health.message)
         self._health_monitor.report_health("planning_engine", pl_health.status, pl_health.message)
         self._health_monitor.report_health("mission_runtime", rt_health.status, rt_health.message)
+        self._health_monitor.report_health("vision_engine", v_health.status, v_health.message)
             
         return KernelHealth(
             kernel_status=overall,
@@ -432,6 +437,7 @@ class FridayKernel:
             metrics_collector=m_health,
             planning_engine=pl_health,
             mission_runtime=rt_health,
+            vision_engine=v_health,
         )
 
     def state(self) -> KernelState:

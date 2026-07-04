@@ -9,6 +9,8 @@ class IntentType(str, Enum):
     SYSTEM_COMMAND = "SYSTEM_COMMAND"
     WEB_SEARCH = "WEB_SEARCH"
     PLUGIN = "PLUGIN"
+    VISION_ACTION = "VISION_ACTION"
+    AUTONOMOUS_GOAL = "AUTONOMOUS_GOAL"
     UNKNOWN = "UNKNOWN"
 
 class IntentClassifier:
@@ -32,7 +34,21 @@ class IntentClassifier:
             return IntentType.SYSTEM_COMMAND
         elif any(w in prompt_lower for w in ["web", "google", "search browser", "navigate"]):
             return IntentType.WEB_SEARCH
+        elif any(w in prompt_lower for w in ["what is on my screen", "read this error", "summarize this dashboard", "what button", "describe this image", "what changed", "screenshot", "ocr", "screen context", "vision"]):
+            return IntentType.VISION_ACTION
         elif any(w in prompt_lower for w in ["plugin", "register module", "extension"]):
             return IntentType.PLUGIN
+        elif any(w in prompt_lower for w in [
+            "organize", "clean up", "cleanup", "sort", "categorize",
+            "automate", "monitor", "watch", "track",
+            "analyze all", "process all", "go through",
+            "set up", "configure", "deploy",
+            "research", "investigate", "explore",
+            "migrate", "backup", "sync",
+            "generate report", "summarize folder",
+            "multi-step", "long running",
+            "organize my", "sort my", "clean my",
+        ]):
+            return IntentType.AUTONOMOUS_GOAL
         else:
             return IntentType.CHAT

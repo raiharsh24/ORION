@@ -111,11 +111,15 @@ class MissionStore:
         return os.path.join(self._base_path, f"{mission_id}_reflection.json")
 
     def save_mission(self, mission: Any) -> None:
-        record = MissionRecord.from_mission(mission)
-        path = self._mission_path(mission.mission_id)
-        with open(path, "w") as f:
-            json.dump(asdict(record), f, indent=2, default=str)
-        self._cache[mission.mission_id] = record
+        from loguru import logger
+        try:
+            record = MissionRecord.from_mission(mission)
+            path = self._mission_path(mission.mission_id)
+            with open(path, "w") as f:
+                json.dump(asdict(record), f, indent=2, default=str)
+            self._cache[mission.mission_id] = record
+        except (IOError, OSError, TypeError, ValueError) as e:
+            logger.error(f"Failed to save mission {mission.mission_id}: {e}")
 
     def load_mission(self, mission_id: str) -> Optional[MissionRecord]:
         if mission_id in self._cache:
@@ -123,11 +127,16 @@ class MissionStore:
         path = self._mission_path(mission_id)
         if not os.path.exists(path):
             return None
-        with open(path) as f:
-            data = json.load(f)
-        record = MissionRecord(**data)
-        self._cache[mission_id] = record
-        return record
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            record = MissionRecord(**data)
+            self._cache[mission_id] = record
+            return record
+        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            from loguru import logger
+            logger.error(f"Failed to load mission {mission_id}: {e}")
+            return None
 
     def list_missions(self) -> List[str]:
         mission_ids: List[str] = []
@@ -153,70 +162,100 @@ class MissionStore:
         return found
 
     def save_telemetry(self, mission_id: str, tel: Any) -> None:
-        record = TelemetryRecord.from_telemetry(tel)
-        record.mission_id = mission_id
-        path = self._telemetry_path(mission_id)
-        with open(path, "w") as f:
-            json.dump(asdict(record), f, indent=2, default=str)
+        from loguru import logger
+        try:
+            record = TelemetryRecord.from_telemetry(tel)
+            record.mission_id = mission_id
+            path = self._telemetry_path(mission_id)
+            with open(path, "w") as f:
+                json.dump(asdict(record), f, indent=2, default=str)
+        except (IOError, OSError, TypeError, ValueError) as e:
+            logger.error(f"Failed to save telemetry for {mission_id}: {e}")
 
     def load_telemetry(self, mission_id: str) -> Optional[TelemetryRecord]:
         path = self._telemetry_path(mission_id)
         if not os.path.exists(path):
             return None
-        with open(path) as f:
-            data = json.load(f)
-        return TelemetryRecord(**data)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return TelemetryRecord(**data)
+        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            from loguru import logger
+            logger.error(f"Failed to load telemetry for {mission_id}: {e}")
+            return None
 
     def save_checkpoint(self, mission_id: str, stage: str,
                          data: Optional[Dict[str, Any]] = None) -> None:
-        record = CheckpointRecord(
-            mission_id=mission_id,
-            stage=stage,
-            data=data or {},
-            timestamp=time.time(),
-        )
-        path = self._checkpoint_path(mission_id)
-        with open(path, "w") as f:
-            json.dump(asdict(record), f, indent=2, default=str)
+        from loguru import logger
+        try:
+            record = CheckpointRecord(
+                mission_id=mission_id,
+                stage=stage,
+                data=data or {},
+                timestamp=time.time(),
+            )
+            path = self._checkpoint_path(mission_id)
+            with open(path, "w") as f:
+                json.dump(asdict(record), f, indent=2, default=str)
+        except (IOError, OSError, TypeError, ValueError) as e:
+            logger.error(f"Failed to save checkpoint for {mission_id}: {e}")
 
     def load_checkpoint(self, mission_id: str) -> Optional[CheckpointRecord]:
         path = self._checkpoint_path(mission_id)
         if not os.path.exists(path):
             return None
-        with open(path) as f:
-            data = json.load(f)
-        return CheckpointRecord(**data)
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            return CheckpointRecord(**data)
+        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            from loguru import logger
+            logger.error(f"Failed to load checkpoint for {mission_id}: {e}")
+            return None
 
     def save_reflection(self, mission_id: str,
                          report: Any) -> None:
-        data = {
-            "mission_id": mission_id,
-            "total_duration_ms": getattr(report, "total_duration_ms", 0.0),
-            "bottlenecks": getattr(report, "bottlenecks", []),
-            "lessons": [
-                {"category": l.category, "description": l.description,
-                 "severity": l.severity, "recommendation": l.recommendation}
-                for l in getattr(report, "lessons", [])
-            ],
-            "stages_completed": getattr(report, "stages_completed", 0),
-        }
-        path = self._reflection_path(mission_id)
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+        from loguru import logger
+        try:
+            data = {
+                "mission_id": mission_id,
+                "total_duration_ms": getattr(report, "total_duration_ms", 0.0),
+                "bottlenecks": getattr(report, "bottlenecks", []),
+                "lessons": [
+                    {"category": l.category, "description": l.description,
+                     "severity": l.severity, "recommendation": l.recommendation}
+                    for l in getattr(report, "lessons", [])
+                ],
+                "stages_completed": getattr(report, "stages_completed", 0),
+            }
+            path = self._reflection_path(mission_id)
+            with open(path, "w") as f:
+                json.dump(data, f, indent=2, default=str)
+        except (IOError, OSError, TypeError, ValueError) as e:
+            logger.error(f"Failed to save reflection for {mission_id}: {e}")
 
     def load_reflection(self, mission_id: str) -> Optional[Dict[str, Any]]:
         path = self._reflection_path(mission_id)
         if not os.path.exists(path):
             return None
-        with open(path) as f:
-            return json.load(f)
+        try:
+            with open(path) as f:
+                return json.load(f)
+        except (IOError, OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            from loguru import logger
+            logger.error(f"Failed to load reflection for {mission_id}: {e}")
+            return None
 
     def load_all_active(self) -> List[MissionRecord]:
         active: List[MissionRecord] = []
         for mission_id in self.list_missions():
-            record = self.load_mission(mission_id)
-            if record and record.status in ("created", "planning", "waiting",
-                                             "ready", "running", "paused",
-                                             "recovering"):
-                active.append(record)
+            try:
+                record = self.load_mission(mission_id)
+                if record and record.status in ("created", "planning", "waiting",
+                                                 "ready", "running", "paused",
+                                                 "recovering"):
+                    active.append(record)
+            except Exception:
+                continue
         return active

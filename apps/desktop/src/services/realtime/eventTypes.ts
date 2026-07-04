@@ -40,6 +40,40 @@ export interface ServiceStatusChangedPayload {
   }[];
 }
 
+// ── Cognitive / Phase 10 event payloads ──
+export interface CognitiveGoalEventPayload {
+  goal_id: string;
+  objective: string;
+  status?: string;
+  progress_pct?: number;
+  parent_id?: string | null;
+  priority?: number;
+}
+
+export interface CognitiveMilestoneEventPayload {
+  goal_id: string;
+  milestone_id: string;
+  milestone_name: string;
+  progress_pct: number;
+}
+
+export interface CognitiveSchedulerEventPayload {
+  [key: string]: unknown;
+}
+
+export interface CognitiveMissionEventPayload {
+  mission_id: string;
+  objective: string;
+  workflow_type?: string;
+  agent_ids?: string[];
+  strategy?: string;
+}
+
+export interface CognitiveLearningEventPayload {
+  learning_type: string;
+  summary: string;
+}
+
 export interface SystemEventMap {
   MissionStarted: Mission;
   MissionUpdated: Mission;
@@ -49,6 +83,16 @@ export interface SystemEventMap {
   TelemetryUpdated: TelemetryUpdatedPayload;
   KernelHealthChanged: KernelHealthChangedPayload;
   ServiceStatusChanged: ServiceStatusChangedPayload;
+
+  // Cognitive / Phase 10 events
+  'cognitive.goal.created': CognitiveGoalEventPayload;
+  'cognitive.goal.updated': CognitiveGoalEventPayload;
+  'cognitive.goal.milestone_completed': CognitiveMilestoneEventPayload;
+  'cognitive.scheduler.started': CognitiveSchedulerEventPayload;
+  'cognitive.scheduler.stopped': CognitiveSchedulerEventPayload;
+  'cognitive.mission.delegated': CognitiveMissionEventPayload;
+  'cognitive.mission.recovered': CognitiveMissionEventPayload;
+  'cognitive.learning.updated': CognitiveLearningEventPayload;
 }
 
 export type SystemEventTopic = keyof SystemEventMap;
@@ -58,3 +102,4 @@ export interface SystemEvent<T extends SystemEventTopic = SystemEventTopic> {
   data: SystemEventMap[T];
   timestamp: number;
 }
+

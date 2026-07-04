@@ -434,7 +434,7 @@ class PlanningEngine:
             try:
                 loop = asyncio.get_running_loop()
                 if loop.is_running():
-                    loop.create_task(self._event_bus.publish(event))
+                    self._event_bus.publish_background(event)
             except RuntimeError:
                 pass
 

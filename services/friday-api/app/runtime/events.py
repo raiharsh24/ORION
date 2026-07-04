@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.events.events import FridayEvent
 
 
@@ -53,4 +53,38 @@ class MissionArchived(FridayEvent):
     def __init__(self, mission_id: str) -> None:
         super().__init__(topic="MissionArchived", data={
             "mission_id": mission_id,
+        })
+
+
+class MissionStepStarted(FridayEvent):
+    def __init__(self, mission_id: str, step_name: str,
+                 step_index: int) -> None:
+        super().__init__(topic="MissionStepStarted", data={
+            "mission_id": mission_id,
+            "step_name": step_name,
+            "step_index": step_index,
+        })
+
+
+class MissionStepCompleted(FridayEvent):
+    def __init__(self, mission_id: str, step_name: str,
+                 step_index: int, success: bool,
+                 duration_ms: float) -> None:
+        super().__init__(topic="MissionStepCompleted", data={
+            "mission_id": mission_id,
+            "step_name": step_name,
+            "step_index": step_index,
+            "success": success,
+            "duration_ms": duration_ms,
+        })
+
+
+class MissionLogGenerated(FridayEvent):
+    def __init__(self, mission_id: str, stage: str,
+                 level: str, message: str) -> None:
+        super().__init__(topic="MissionLogGenerated", data={
+            "mission_id": mission_id,
+            "stage": stage,
+            "level": level,
+            "message": message,
         })

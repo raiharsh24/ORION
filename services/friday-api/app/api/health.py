@@ -15,7 +15,7 @@ async def health_check() -> HealthResponse:
     health_data = kernel.health()
 
     services_list = []
-    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm", "agents", "workflow_runtime"]
+    subsystems = ["planner", "knowledge", "memory", "desktop", "mission", "workflow", "scheduler", "llm", "agents", "workflow_runtime", "vision_engine"]
     for sub in subsystems:
         val = getattr(health_data, sub, None)
         if val:

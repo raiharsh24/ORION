@@ -101,7 +101,7 @@ class ExecutionManager:
             if inspect.iscoroutinefunction(self.event_bus.publish):
                 try:
                     loop = asyncio.get_running_loop()
-                    loop.create_task(self.event_bus.publish(event))
+                    self.event_bus.publish_background(event)
                 except RuntimeError:
                     asyncio.run(self.event_bus.publish(event))
             else:

@@ -9,6 +9,10 @@ from app.tools.desktop_tools import (
     OpenApplicationTool, CloseApplicationTool, ScreenshotTool,
     ClipboardCopyTool, ClipboardReadTool, NotificationsTool
 )
+from app.tools.vision_tools import (
+    ScreenshotCaptureTool, ImageAnalysisTool, OCRTool,
+    ScreenContextTool, ClipboardImageTool
+)
 
 __all__ = [
     "BaseTool",
@@ -23,5 +27,10 @@ __all__ = [
     "ScreenshotTool",
     "ClipboardCopyTool",
     "ClipboardReadTool",
-    "NotificationsTool"
+    "NotificationsTool",
+    "ScreenshotCaptureTool",
+    "ImageAnalysisTool",
+    "OCRTool",
+    "ScreenContextTool",
+    "ClipboardImageTool",
 ]

@@ -11,7 +11,9 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  Sparkles
+  Sparkles,
+  ListTodo,
+  Cpu
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
@@ -20,6 +22,8 @@ export const Sidebar: React.FC = () => {
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Assistant', path: '/assistant', icon: MessageSquareCode },
+    { name: 'Missions', path: '/missions', icon: ListTodo },
+    { name: 'Cognitive OS', path: '/cognitive', icon: Cpu },
     { name: 'Knowledge', path: '/knowledge', icon: Database },
     { name: 'Projects', path: '/projects', icon: FolderGit },
     { name: 'Developer', path: '/developer', icon: Terminal },

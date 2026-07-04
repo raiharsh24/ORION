@@ -21,3 +21,4 @@ class FridayResponse(BaseModel):
     telemetry: Optional[FridayTelemetry] = Field(None, description="Generative telemetry statistics")
     confirmation_required: Optional[bool] = Field(default=False, description="Whether user confirmation is required")
     confirmation_token: Optional[str] = Field(default=None, description="Correlation token confirming a blocked action")
+    mission_id: Optional[str] = Field(default=None, description="Mission ID for autonomous goal tracking")

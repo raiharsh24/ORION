@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 
 from app.kernel.kernel import FridayKernel
@@ -197,7 +197,7 @@ async def get_mission(id: str, manager: MissionManager = Depends(get_mission_man
         
     return map_to_detailed(mission, manager)
 
-@router.post("/missions/start", response_model=StatusToggleResponse)
+@router.post("/missions/{mission_id}/start", response_model=StatusToggleResponse)
 async def start_mission(mission_id: str, manager: MissionManager = Depends(get_mission_manager)) -> StatusToggleResponse:
     mission = manager._active_missions.get(mission_id)
     if not mission:
@@ -230,7 +230,7 @@ async def start_mission(mission_id: str, manager: MissionManager = Depends(get_m
         status=mission.status.value
     )
 
-@router.post("/missions/pause", response_model=StatusToggleResponse)
+@router.post("/missions/{mission_id}/pause", response_model=StatusToggleResponse)
 async def pause_mission(mission_id: str, manager: MissionManager = Depends(get_mission_manager)) -> StatusToggleResponse:
     mission = manager._active_missions.get(mission_id)
     if not mission:
@@ -257,7 +257,7 @@ async def pause_mission(mission_id: str, manager: MissionManager = Depends(get_m
         status=mission.status.value
     )
 
-@router.post("/missions/resume", response_model=StatusToggleResponse)
+@router.post("/missions/{mission_id}/resume", response_model=StatusToggleResponse)
 async def resume_mission(mission_id: str, manager: MissionManager = Depends(get_mission_manager)) -> StatusToggleResponse:
     mission = manager._active_missions.get(mission_id)
     if not mission:
@@ -265,10 +265,8 @@ async def resume_mission(mission_id: str, manager: MissionManager = Depends(get_
         
     success = await manager.resume_mission(mission_id)
     if success:
-        # Adjust start time so the elapsed ticker resumes progress smoothly
-        # elapsed_seconds = progress / 5.0
         elapsed_needed = (mission.progress / 5.0)
-        manager._start_times[mission_id] = datetime.now(timezone.utc) - timedelta_seconds(elapsed_needed)
+        manager._start_times[mission_id] = datetime.now(timezone.utc) - timedelta(seconds=elapsed_needed)
         
         logs = mission.metadata.setdefault("logs", [])
         logs.append({
@@ -287,10 +285,6 @@ async def resume_mission(mission_id: str, manager: MissionManager = Depends(get_
         mission_id=mission_id,
         status=mission.status.value
     )
-
-def timedelta_seconds(sec: float):
-    import datetime
-    return datetime.timedelta(seconds=sec)
 
 @router.post("/missions/cancel", response_model=StatusToggleResponse)
 async def cancel_mission(mission_id: str, manager: MissionManager = Depends(get_mission_manager)) -> StatusToggleResponse:

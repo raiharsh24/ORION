@@ -130,7 +130,48 @@ class WindowManager:
         Returns:
             Dict[str, Any]: Structured success indicator.
         """
-        return {
-            "success": False,
-            "error": "Maximize window operation not implemented."
-        }
+        if not self._has_xdotool():
+            return {"success": False, "error": "Not implemented: xdotool is missing."}
+        try:
+            proc = subprocess.run(
+                ["xdotool", "windowactivate", window_id],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            if proc.returncode != 0:
+                return {"success": False, "error": "Window activation failed."}
+            proc = subprocess.run(
+                ["xdotool", "windowsize", window_id, "100%", "100%"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            return {
+                "success": proc.returncode == 0,
+                "error": None if proc.returncode == 0 else "Maximize command failed.",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def resize_window(self, window_id: str, width: int, height: int) -> Dict[str, Any]:
+        """
+        Resizes a window to specific dimensions.
+
+        Args:
+            window_id (str): Window ID.
+            width (int): Desired width.
+            height (int): Desired height.
+
+        Returns:
+            Dict[str, Any]: Structured success indicator.
+        """
+        if not self._has_xdotool():
+            return {"success": False, "error": "Not implemented: xdotool is missing."}
+        try:
+            proc = subprocess.run(
+                ["xdotool", "windowsize", window_id, str(width), str(height)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            return {
+                "success": proc.returncode == 0,
+                "error": None if proc.returncode == 0 else "Resize command failed.",
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}

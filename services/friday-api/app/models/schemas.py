@@ -30,6 +30,7 @@ class AskResponse(BaseModel):
     telemetry: Optional[TelemetryDetail] = Field(None, description="Generative telemetry statistics")
     confirmation_required: Optional[bool] = Field(default=False, description="Indicates if user confirmation is required to proceed")
     confirmation_token: Optional[str] = Field(default=None, description="Unique token for confirming this action")
+    mission_id: Optional[str] = Field(default=None, description="Mission ID for autonomous goal tracking")
 
 class ChatRequest(BaseModel):
     prompt: str = Field(..., description="The query prompt sent to FRIDAY")

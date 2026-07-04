@@ -6,14 +6,23 @@ from app.memory.schema import SessionMemory, ChatMessage
 from app.memory.store import JSONStore, InMemoryStore, SQLiteStore
 from app.memory.manager import MemoryManager
 from app.memory.serializer import MemorySerializer
+from app.memory.episodic import EpisodicMemory
+from app.memory.graph import KnowledgeGraph
+from app.memory.learning import LearningEngine
+from app.memory.consolidator import MemoryConsolidator
 
 class MemoryEngine:
     """
     Main MemoryEngine service registered inside FridayServiceContainer.
-    Implements Alpha 4.0 lifecycle hooks, health monitoring, and backwards-compatible wrappers.
+    Integrates MemoryManager, EpisodicMemory, KnowledgeGraph, LearningEngine,
+    and MemoryConsolidator into a unified hierarchy.
     """
     def __init__(self) -> None:
         self._manager: Optional[MemoryManager] = None
+        self._episodic: Optional[EpisodicMemory] = None
+        self._graph: Optional[KnowledgeGraph] = None
+        self._learning: Optional[LearningEngine] = None
+        self._consolidator: Optional[MemoryConsolidator] = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -64,6 +73,12 @@ class MemoryEngine:
         self._event_bus = kernel.get_service("event_bus")
         self._manager = MemoryManager(store=store, event_bus=self._event_bus)
 
+        # Initialize intelligence sub-components sharing the same store
+        self._episodic = EpisodicMemory(store=store)
+        self._graph = KnowledgeGraph(store=store)
+        self._learning = LearningEngine(store=store, event_bus=self._event_bus)
+        self._consolidator = MemoryConsolidator(manager=self._manager)
+
         # Register EventBus subscribers
         if self._event_bus:
             self._event_bus.subscribe("ConversationCompleted", self._manager.on_conversation_completed)
@@ -77,11 +92,15 @@ class MemoryEngine:
 
     async def start(self) -> None:
         """Lifecycle start hook."""
+        if self._consolidator:
+            await self._consolidator.start(interval_seconds=3600)
         logger.info("MemoryEngine service started.")
 
     async def shutdown(self) -> None:
         """Lifecycle shutdown/persist hook."""
         logger.info("Shutting down MemoryEngine...")
+        if self._consolidator:
+            await self._consolidator.stop()
         if self._event_bus and self._manager:
             self._event_bus.unsubscribe("ConversationCompleted", self._manager.on_conversation_completed)
             self._event_bus.unsubscribe("ToolCompleted", self._manager.on_tool_completed)
@@ -106,16 +125,56 @@ class MemoryEngine:
         if self._manager.retrieval_count > 0:
             avg_latency = self._manager.retrieval_latency_sum / self._manager.retrieval_count
 
+        consolidator_health = self._consolidator.health() if self._consolidator else {"status": "NOT_CONFIGURED"}
+        learning_stats = self._learning.get_stats() if self._learning else {}
+        graph_stats = self._graph.get_stats() if self._graph else {}
+
         return {
             "status": "HEALTHY",
-            "message": "Memory Engine v1.0 running nomially.",
+            "message": "Memory Engine v2.0 with intelligence subsystems.",
             "details": {
                 "session_count": sessions_count,
                 "project_count": projects_count,
                 "retrieval_latency_ms": round(avg_latency, 2),
-                "errors_count": self._manager.errors_count
+                "errors_count": self._manager.errors_count,
+                "consolidator": consolidator_health,
+                "learning": learning_stats,
+                "knowledge_graph": graph_stats,
             }
         }
+
+    # ==========================================
+    # Intelligence Subsystem Accessors
+    # ==========================================
+    @property
+    def episodic(self) -> EpisodicMemory:
+        if not self._episodic:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._episodic
+
+    @property
+    def graph(self) -> KnowledgeGraph:
+        if not self._graph:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._graph
+
+    @property
+    def learning(self) -> LearningEngine:
+        if not self._learning:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._learning
+
+    @property
+    def consolidator(self) -> MemoryConsolidator:
+        if not self._consolidator:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._consolidator
+
+    @property
+    def manager(self) -> MemoryManager:
+        if not self._manager:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._manager
 
     # ==========================================
     # Backward Compatibility Mappings
@@ -174,3 +233,8 @@ class MemoryEngine:
         if not self._manager:
             raise RuntimeError("MemoryEngine is not initialized.")
         self._manager._store.clear()
+
+    def run_cleanup(self, **kwargs) -> Dict[str, int]:
+        if not self._manager:
+            raise RuntimeError("MemoryEngine is not initialized.")
+        return self._manager.run_cleanup(**kwargs)

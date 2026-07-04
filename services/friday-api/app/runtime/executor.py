@@ -314,6 +314,13 @@ class MissionExecutor:
             except Exception:
                 pass
 
+    def remove_mission(self, mission_id: str) -> None:
+        """Clean up executor state for a completed/failed/archived mission."""
+        self._missions.pop(mission_id, None)
+        self._state_machines.pop(mission_id, None)
+        self._checkpoints.pop(mission_id, None)
+        self._paused_missions.pop(mission_id, None)
+
     @property
     def available(self) -> bool:
         return True

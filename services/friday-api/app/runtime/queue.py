@@ -215,6 +215,15 @@ class MissionQueue:
     def size(self) -> int:
         return len(self._heap)
 
+    def stop_processing(self) -> None:
+        """Cancel all running tasks and clear the queue."""
+        for mission_id, task in list(self._running.items()):
+            if not task.done():
+                task.cancel()
+            self._running.pop(mission_id, None)
+        self._heap.clear()
+        self._processing = False
+
     def clear(self) -> None:
         self._heap.clear()
         self._completed.clear()

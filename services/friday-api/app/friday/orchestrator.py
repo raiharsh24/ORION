@@ -4,7 +4,7 @@ import socket
 from loguru import logger
 from typing import List, Dict, Any, AsyncGenerator, Optional
 
-from app.friday.intent import IntentClassifier, IntentType
+from app.friday.intent import IntentClassifier, IntentType as IntentTypeEnum
 from app.memory import ConversationMemory, EmbeddingsManager
 from app.friday.prompt_manager import PromptManager
 from app.friday.context import SystemContext
@@ -31,6 +31,7 @@ class FridayOrchestrator:
         embeddings: EmbeddingsManager,
         runtime_bridge: Optional[Any] = None,
         event_bus: Optional[Any] = None,
+        mission_runtime: Optional[Any] = None,
     ) -> None:
         self.llm_router = llm_router
         self.intent_classifier = intent_classifier
@@ -42,6 +43,7 @@ class FridayOrchestrator:
         self.tool_executor = ToolExecutor(tool_registry)
         self._runtime_bridge = runtime_bridge
         self._event_bus = event_bus
+        self._mission_runtime = mission_runtime
         logger.info("FridayOrchestrator coordinates initialized with Action Engine modules.")
 
     def _estimate_tokens(self, text: str) -> int:
@@ -82,10 +84,15 @@ class FridayOrchestrator:
         Check if the prompt triggers a tool call requiring user confirmation.
         Returns: (requires_confirmation, token, warning_message, tool_name)
         """
+        print("[DEBUG ORCH] Entering check_confirmation", flush=True)
         intent = await self.intent_classifier.classify(prompt)
+        print(f"[DEBUG ORCH] intent classified: {intent}", flush=True)
         plan = await self.planner.plan(prompt, intent)
+        print(f"[DEBUG ORCH] plan resolved: {plan}", flush=True)
         if plan:
+            print("[DEBUG ORCH] plan is not None, executing tool_executor.execute", flush=True)
             exec_result = await self.tool_executor.execute(plan, confirmed, confirmation_token)
+            print(f"[DEBUG ORCH] tool_executor.execute returned success={exec_result.success if exec_result else None}", flush=True)
             if exec_result.confirmation_required:
                 return True, exec_result.confirmation_token, exec_result.output, plan.tool_name
         return False, None, None, None
@@ -111,6 +118,10 @@ class FridayOrchestrator:
         # 1. Intent Classifier
         intent = await self.intent_classifier.classify(prompt)
         logger.info(f"Selected intent: {intent.value}")
+
+        # 1a. Delegate AUTONOMOUS_GOAL to MissionRuntime
+        if intent == IntentTypeEnum.AUTONOMOUS_GOAL and self._mission_runtime:
+            return await self._handle_autonomous_goal(prompt, sess_id, provider_name)
 
         # 2. Planner & Tool Execution
         tool_used = None
@@ -175,12 +186,23 @@ class FridayOrchestrator:
         history_str = self.memory.get_history_string(sess_id)
         available_tools_list = list(self.tool_registry.list_tools().keys())
 
+        vision_context_str = ""
+        if session.context and isinstance(session.context, dict):
+            last_vision = session.context.get("last_vision")
+            if last_vision and last_vision.get("has_text"):
+                vision_context_str = f"\n[Previous Screen Context]:\n{last_vision.get('ocr_text', '')}"
+                if last_vision.get("element_count", 0) > 0:
+                    vision_context_str += f"\n[UI Elements Detected: {last_vision['element_count']}]"
+
         # 4. Formulate Prompt using Prompt Builder
         system_instruction = (
             "You are FRIDAY, the central AI operating system core. Be helpful and direct."
         )
         if tool_used:
             system_instruction += f"\n[Executed Tool: {tool_used}. Output results: {tool_output}]"
+
+        if vision_context_str:
+            system_instruction += vision_context_str
 
         session_meta = {
             "session_id": sess_id,
@@ -290,7 +312,12 @@ class FridayOrchestrator:
         logger.info(f"Incoming stream request: session={sess_id}, provider={provider_name}")
 
         intent = await self.intent_classifier.classify(prompt)
-        
+
+        if intent == IntentTypeEnum.AUTONOMOUS_GOAL and self._mission_runtime:
+            response = await self._handle_autonomous_goal(prompt, sess_id, provider_name)
+            yield response.response
+            return
+
         tool_used = None
         tool_output = ""
 
@@ -321,10 +348,20 @@ class FridayOrchestrator:
 
         history_str = self.memory.get_history_string(sess_id)
         available_tools_list = list(self.tool_registry.list_tools().keys())
+
+        stream_vision_str = ""
+        if session.context and isinstance(session.context, dict):
+            last_vision = session.context.get("last_vision")
+            if last_vision and last_vision.get("has_text"):
+                stream_vision_str = f"\n[Previous Screen Context]:\n{last_vision.get('ocr_text', '')}"
+                if last_vision.get("element_count", 0) > 0:
+                    stream_vision_str += f"\n[UI Elements Detected: {last_vision['element_count']}]"
         
         system_instruction = "You are FRIDAY, the central AI operating system core. Stream text."
         if tool_used:
             system_instruction += f"\n[Executed Tool: {tool_used}. Output results: {tool_output}]"
+        if stream_vision_str:
+            system_instruction += stream_vision_str
 
         session_meta = {
             "session_id": sess_id,
@@ -364,3 +401,40 @@ class FridayOrchestrator:
                 "session_id": sess_id, "turn_count": len(self.memory.get_session(sess_id).messages) if self.memory.get_session(sess_id) else 0
             }))
         logger.info(f"Memory updates: logged streamed assistant response for session {sess_id}.")
+
+    async def _handle_autonomous_goal(
+        self,
+        prompt: str,
+        session_id: str,
+        provider_name: str = "gemini",
+    ) -> FridayResponse:
+        start_time = time.time()
+        mission_id = await self._mission_runtime.submit_background(
+            user_request=prompt,
+            intent="AUTONOMOUS_GOAL",
+            metadata={"session_id": session_id},
+        )
+        latency_ms = (time.time() - start_time) * 1000
+
+        self.memory.add_message(session_id, "user", prompt)
+        self.memory.add_message(
+            session_id,
+            "assistant",
+            f"Starting autonomous mission: {mission_id}",
+        )
+        self.memory.update_context(session_id, f"Intent: AUTONOMOUS_GOAL (mission: {mission_id})")
+
+        if self._event_bus:
+            self._event_bus.publish_background(FridayEvent(topic="ConversationCompleted", data={
+                "session_id": session_id, "mission_id": mission_id,
+            }))
+
+        return FridayResponse(
+            success=True,
+            intent="AUTONOMOUS_GOAL",
+            response=f"Starting autonomous mission for: {prompt}\nYou can track progress and control execution via the mission dashboard.",
+            session_id=session_id,
+            execution_time_ms=latency_ms,
+            telemetry=FridayTelemetry(model=provider_name),
+            mission_id=mission_id,
+        )
