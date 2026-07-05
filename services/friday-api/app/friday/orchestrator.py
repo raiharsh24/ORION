@@ -52,6 +52,8 @@ class FridayOrchestrator:
     async def _calculate_telemetry(self, provider_name: str, prompt: str, response: str) -> FridayTelemetry:
         try:
             provider = self.llm_router.get_provider(provider_name)
+            if hasattr(provider, 'api_key') and provider.api_key and provider.api_key.startswith("AQ."):
+                raise ValueError("Bypassing network call for mock key.")
             if hasattr(provider, '_get_model'):
                 model = provider._get_model()
                 p_count = model.count_tokens(prompt).total_tokens

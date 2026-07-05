@@ -18,5 +18,5 @@ export interface HealthResponse {
 
 export const healthApi = {
   getHealth: () => 
-    apiFetch<HealthResponse>(`${BASE_URL}/health`),
+    apiFetch<HealthResponse>(`${BASE_URL}/api/health`),
 };

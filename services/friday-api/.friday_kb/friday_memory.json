@@ -64,5 +64,18 @@
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
+  },
+  "consolidated:fact:sess_999": {
+    "id": "46c0a897-64d2-4c13-859d-6e922f2130b3",
+    "content": "Session summary: custom summary",
+    "category": "general",
+    "importance": 6,
+    "timestamp": 1783270536.5077684,
+    "expiration": null,
+    "metadata": {
+      "source": "consolidation",
+      "session_id": "sess_999",
+      "message_count": 2
+    }
   }
 }

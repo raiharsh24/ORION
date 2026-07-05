@@ -119,20 +119,9 @@ class SQLiteStore(MemoryStore):
         self._init_db()
 
     def _init_db(self) -> None:
-        os.makedirs(os.path.dirname(os.path.abspath(self.db_path)), exist_ok=True)
+        from app.kernel.migrate import run_database_migrations
         with self._lock:
-            conn = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)
-            try:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS memory_kv (
-                        key TEXT PRIMARY KEY,
-                        value TEXT
-                    )
-                """)
-                conn.commit()
-            finally:
-                conn.close()
+            run_database_migrations(self.db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         return sqlite3.connect(self.db_path, check_same_thread=False, timeout=10.0)

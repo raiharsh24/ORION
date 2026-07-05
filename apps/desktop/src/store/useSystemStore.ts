@@ -149,7 +149,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
 
   checkBackendStatus: async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/health`);
+      const res = await fetch(`${API_BASE_URL}/api/health`);
       if (res.ok) {
         set({ 
           apiConnected: true, 

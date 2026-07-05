@@ -1,8 +1,11 @@
+from __future__ import annotations
 import time
-from typing import Any, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 from loguru import logger
 from app.tools.base_tool import BaseTool
-from app.desktop.controller import DesktopController
+
+if TYPE_CHECKING:
+    from app.desktop.controller import DesktopController
 
 class OpenApplicationTool(BaseTool):
     """

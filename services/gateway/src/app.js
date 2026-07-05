@@ -57,15 +57,7 @@ app.get('/status', (req, res) => {
 });
 
 // ---------------- Proxy Endpoints (Targeting Python Core) ----------------
-app.use(['/ask', '/api/ask'], pythonProxy());
-app.use(['/kernel', '/api/kernel'], pythonProxy());
-app.use(['/missions', '/api/missions'], pythonProxy());
-app.use(['/telemetry', '/api/telemetry'], pythonProxy());
-app.use(['/workflows', '/api/workflows'], pythonProxy());
-app.use(['/workspace', '/api/workspace'], pythonProxy());
-app.use(['/knowledge', '/api/knowledge'], pythonProxy());
-app.use(['/events', '/api/events'], pythonProxy());
-app.use(['/ws', '/api/ws', '/ws/voice'], pythonProxy());
+app.use('/', pythonProxy());
 
 // ---------------- API Endpoints ----------------
 
