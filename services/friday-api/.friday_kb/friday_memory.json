@@ -66,11 +66,11 @@
     "metadata": {}
   },
   "consolidated:fact:sess_999": {
-    "id": "46c0a897-64d2-4c13-859d-6e922f2130b3",
+    "id": "eab2612b-cf83-4531-9b04-34ad23ed1b24",
     "content": "Session summary: custom summary",
     "category": "general",
     "importance": 6,
-    "timestamp": 1783270536.5077684,
+    "timestamp": 1783276479.7612183,
     "expiration": null,
     "metadata": {
       "source": "consolidation",
