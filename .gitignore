@@ -1,11 +1,20 @@
 # =========================
-# Node
+# Node & Dependencies
 # =========================
 node_modules/
 dist/
 build/
+out/
+target/
 .vite/
 .vite-temp/
+.eslintcache
+
+# Bundled Runtimes & Node Distributions
+node-v*
+node-v*/
+*.tar.gz
+*.zip
 
 # =========================
 # Python
@@ -25,14 +34,41 @@ env/
 *.sqlite
 .friday_kb/
 
+# =========================
 # Environment variables
+# =========================
 .env
 .env.*
+!.env.example
 
-# IDE
-.vscode/settings.json
+# =========================
+# Secrets, Keys and Certificates
+# =========================
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+*credentials*.json
+*secret*.json
+!*example*
+
+# =========================
+# Logs, Caches and Temporary Files
+# =========================
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+*cache*/
+
+# =========================
+# IDE & OS
+# =========================
+.vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db
+
