@@ -1178,7 +1178,7 @@ export const AssistantPage: React.FC = () => {
                   <div className="bg-black/40 border border-matte-border/60 rounded-xl p-2.5 max-h-[140px] overflow-y-auto scrollbar-thin space-y-2 select-text text-[8px]">
                     {[
                       { title: 'Screen Capture Completed', body: 'Screenshot saved to kernel workspace assets.', time: '02:44:10', type: 'success' },
-                      { title: 'Subsystem Connection Verified', body: 'Verified socket bridge under ws://localhost:5000/ws/voice.', time: '02:43:08', type: 'info' },
+                      { title: 'Subsystem Connection Verified', body: 'Verified socket bridge under ws://localhost:8000/ws/voice.', time: '02:43:08', type: 'info' },
                       { title: 'Permissions Synced', body: 'Acquired write_file permission validation scope.', time: '02:42:01', type: 'success' },
                     ].map((n, idx) => (
                       <div key={idx} className="border-b border-matte-border/20 pb-2 last:border-none last:pb-0 space-y-0.5">

@@ -1,0 +1,13 @@
+{
+  "id": "clipboard_manager",
+  "name": "Clipboard Manager",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Read from and write to the system clipboard",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "desktop.access", "description": "Access clipboard via desktop controller"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

@@ -35,7 +35,7 @@ def manifest_from_dict(data: dict) -> Optional[PluginManifest]:
                 description=p.get("description", ""),
                 granted=False,
             ))
-        return PluginManifest(
+        manifest = PluginManifest(
             id=str(data.get("id", "")),
             name=str(data.get("name", "")),
             version=str(data.get("version", "1.0.0")),
@@ -48,6 +48,10 @@ def manifest_from_dict(data: dict) -> Optional[PluginManifest]:
             entry_point=str(data.get("entry_point", "")),
             metadata=dict(data.get("metadata", {})),
         )
+        config_schema = data.get("configuration_schema")
+        if config_schema is not None:
+            manifest.metadata["configuration_schema"] = config_schema
+        return manifest
     except (KeyError, TypeError, ValueError):
         return None
 

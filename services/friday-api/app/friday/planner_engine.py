@@ -25,8 +25,9 @@ class PlannerEngine:
         from app.kernel.kernel import FridayKernel
         kernel = FridayKernel.get_instance()
         event_bus = kernel.get_service("event_bus")
+        tool_registry = kernel.get_service("universal_tool_registry")
 
-        self._manager = PlannerManager(event_bus=event_bus)
+        self._manager = PlannerManager(event_bus=event_bus, tool_registry=tool_registry)
 
         # Register EventBus subscribers
         self._event_bus = event_bus
@@ -86,7 +87,7 @@ class PlannerEngine:
     async def plan(self, prompt: str, intent: IntentType) -> Optional[ExecutionPlan]:
         if not self._manager:
             logger.warning("PlannerEngine.plan called before initialize. Running lazy initialization.")
-            self._manager = PlannerManager(event_bus=None)
+            await self.initialize()
         res = await self._manager.create_plan(prompt, intent)
         if not res.toolRequired:
             return None

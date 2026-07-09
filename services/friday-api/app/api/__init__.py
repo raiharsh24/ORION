@@ -19,6 +19,8 @@ from app.api.planner_inspector import router as planner_inspector_router
 from app.api.runtime_inspector import router as runtime_inspector_router
 from app.api.agent_inspector import router as agent_inspector_router
 from app.api.cognitive_inspector import router as cognitive_inspector_router
+from app.api.atlas import router as atlas_router
+from app.api.tools import router as tools_router
 
 api_router = APIRouter()
 
@@ -43,3 +45,5 @@ api_router.include_router(planner_inspector_router)
 api_router.include_router(runtime_inspector_router)
 api_router.include_router(agent_inspector_router)
 api_router.include_router(cognitive_inspector_router)
+api_router.include_router(atlas_router)
+api_router.include_router(tools_router)

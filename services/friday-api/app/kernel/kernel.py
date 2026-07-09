@@ -32,7 +32,7 @@ class FridayKernel:
     def __init__(self, config: Optional[FridayKernelConfig] = None) -> None:
         """Initialize the FridayKernel."""
         # 1. Config System
-        self._config_system = FridayConfigSystem(config or FridayKernelConfig())
+        self._config_system = FridayConfigSystem(config)
         self._config = self._config_system.get_config()
         self._state = KernelState.STOPPED
         

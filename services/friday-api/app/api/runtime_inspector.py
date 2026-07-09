@@ -16,7 +16,7 @@ router = APIRouter()
 def _get_executor() -> MissionExecutor:
     from app.kernel.kernel import FridayKernel
     kernel = FridayKernel.get_instance()
-    executor = kernel.get_service("mission_engine") if kernel else None
+    executor = kernel.get_service("mission_engine_v2") if kernel else None
     if not executor:
         raise HTTPException(status_code=503, detail="MissionEngine not available")
     return executor

@@ -1,5 +1,8 @@
 import time
 import json
+import importlib
+import importlib.util
+import sys
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Set
 from datetime import datetime, timezone
@@ -96,6 +99,47 @@ class RuntimePluginLoader:
                 continue
         return discovered
 
+    def _import_plugin_module(self, inst: PluginInstance) -> Optional[Any]:
+        plugin_dir = inst.plugin_dir
+        if not plugin_dir:
+            return None
+        entry = inst.entry_point or "main"
+        module_path = str(Path(plugin_dir) / f"{entry}.py")
+        if not Path(module_path).exists():
+            logger.warning(f"Plugin '{inst.plugin_id}' entry point '{entry}.py' not found at '{module_path}'")
+            return None
+        try:
+            spec = importlib.util.spec_from_file_location(
+                f"plugin_{inst.plugin_id}", module_path,
+            )
+            if spec is None or spec.loader is None:
+                logger.error(f"Failed to create spec for plugin '{inst.plugin_id}'")
+                return None
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[f"plugin_{inst.plugin_id}"] = mod
+            spec.loader.exec_module(mod)
+
+            from app.plugin_sdk.base_plugin import BasePlugin
+            plugin_class = None
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if isinstance(attr, type) and issubclass(attr, BasePlugin) and attr is not BasePlugin:
+                    plugin_class = attr
+                    break
+
+            if plugin_class is None:
+                logger.warning(f"No BasePlugin subclass found in '{module_path}'")
+                return None
+
+            instance = plugin_class()
+            instance.id = inst.plugin_id
+            instance.name = inst.name
+            return instance
+
+        except Exception as e:
+            logger.error(f"Failed to import plugin module '{module_path}': {e}")
+            return None
+
     async def load(self, plugin_id: str) -> Optional[PluginInstance]:
         inst = self._instances.get(plugin_id)
         if inst is None:
@@ -138,6 +182,9 @@ class RuntimePluginLoader:
                                 f"Dependency '{dep.plugin_id}' not ready for plugin '{plugin_id}'"
                             )
 
+            plugin_instance = self._import_plugin_module(inst)
+            inst.metadata["plugin_instance"] = plugin_instance
+
             load_time = (time.time() - start) * 1000
             inst.loaded_at = datetime.now(timezone.utc)
             inst.record_state(PluginRuntimeState.LOADED)
@@ -171,6 +218,18 @@ class RuntimePluginLoader:
         start = time.time()
 
         try:
+            plugin_instance = inst.metadata.get("plugin_instance")
+            if plugin_instance is not None:
+                from app.plugin_sdk.plugin_context import PluginContext
+                ctx = PluginContext(
+                    plugin_id=inst.plugin_id,
+                    plugin_name=inst.name,
+                    event_bus=self._event_bus,
+                    config=inst.metadata.get("config", {}),
+                )
+                plugin_instance.set_context(ctx)
+                await plugin_instance.on_load()
+
             init_time = (time.time() - start) * 1000
             inst.initialized_at = datetime.now(timezone.utc)
             inst.record_state(PluginRuntimeState.INITIALIZED)
@@ -198,6 +257,14 @@ class RuntimePluginLoader:
         inst.record_state(PluginRuntimeState.READY)
         inst.ready_at = datetime.now(timezone.utc)
         self._monitor.set_peak_plugins(len(self._instances))
+
+        plugin_instance = inst.metadata.get("plugin_instance")
+        if plugin_instance is not None:
+            try:
+                await plugin_instance.on_enable()
+            except Exception as e:
+                logger.warning(f"Plugin '{plugin_id}' on_enable failed: {e}")
+
         self._publish(PluginReady(
             plugin_id=plugin_id, name=inst.name,
             tool_count=tool_count, cap_count=cap_count,

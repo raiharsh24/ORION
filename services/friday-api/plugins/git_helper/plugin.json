@@ -1,0 +1,13 @@
+{
+  "id": "git_helper",
+  "name": "Git Helper",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Common Git operations: status, log, branch, diff",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "terminal.execute", "description": "Run git commands"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

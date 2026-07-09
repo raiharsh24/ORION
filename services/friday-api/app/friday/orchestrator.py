@@ -20,6 +20,10 @@ class FridayOrchestrator:
     """
     Coordinates FRIDAY Core intelligence logic and pipeline pathways:
     API -> Intent Classifier -> Planner -> Tool Executor / Workflow Runtime -> Tools -> Prompts -> LLM Router -> Response Formatter.
+
+    When an `execution_engine` is provided, delegates process_query, process_stream,
+    and check_confirmation to the UnifiedExecutionEngine for unified cancellation,
+    retry, timeout, middleware, and metrics. Falls back to legacy paths otherwise.
     """
     def __init__(
         self,
@@ -32,6 +36,8 @@ class FridayOrchestrator:
         runtime_bridge: Optional[Any] = None,
         event_bus: Optional[Any] = None,
         mission_runtime: Optional[Any] = None,
+        cognitive_core: Optional[Any] = None,
+        execution_engine: Optional[Any] = None,
     ) -> None:
         self.llm_router = llm_router
         self.intent_classifier = intent_classifier
@@ -44,6 +50,10 @@ class FridayOrchestrator:
         self._runtime_bridge = runtime_bridge
         self._event_bus = event_bus
         self._mission_runtime = mission_runtime
+        self.cognitive_core = cognitive_core
+        self._execution_engine = execution_engine
+        if execution_engine:
+            logger.info("FridayOrchestrator delegating to UnifiedExecutionEngine.")
         logger.info("FridayOrchestrator coordinates initialized with Action Engine modules.")
 
     def _estimate_tokens(self, text: str) -> int:
@@ -85,7 +95,14 @@ class FridayOrchestrator:
         """
         Check if the prompt triggers a tool call requiring user confirmation.
         Returns: (requires_confirmation, token, warning_message, tool_name)
+        Delegates to UnifiedExecutionEngine when available.
         """
+        if self._execution_engine:
+            return await self._execution_engine.check_confirmation(
+                prompt=prompt,
+                confirmed=confirmed,
+                confirmation_token=confirmation_token,
+            )
         print("[DEBUG ORCH] Entering check_confirmation", flush=True)
         intent = await self.intent_classifier.classify(prompt)
         print(f"[DEBUG ORCH] intent classified: {intent}", flush=True)
@@ -107,6 +124,14 @@ class FridayOrchestrator:
         confirmed: bool = False,
         confirmation_token: str | None = None
     ) -> FridayResponse:
+        if self._execution_engine:
+            return await self._execution_engine.execute(
+                prompt=prompt,
+                session_id=session_id,
+                provider_name=provider_name,
+                confirmed=confirmed,
+                confirmation_token=confirmation_token,
+            )
         start_time = time.time()
         sess_id = session_id or str(uuid.uuid4())
         
@@ -177,6 +202,16 @@ class FridayOrchestrator:
         if tool_used:
             logger.info(f"Tool usage: '{tool_used}' triggered. Output: {tool_output[:40]}...")
 
+        # 2a. Cognitive Core enrichment (semantic + graph context)
+        cognitive_context = ""
+        if self.cognitive_core:
+            try:
+                retrieval = await self.cognitive_core.retrieve_relevant_context(prompt, top_k=3)
+                if retrieval.get("combined_context"):
+                    cognitive_context = retrieval["combined_context"]
+            except Exception as e:
+                logger.debug(f"CognitiveCore retrieval skipped: {e}")
+
         # 3. Context & History loading
         sys_context = SystemContext()
         session = self.memory.get_or_create_session(sess_id)
@@ -205,6 +240,9 @@ class FridayOrchestrator:
 
         if vision_context_str:
             system_instruction += vision_context_str
+
+        if cognitive_context:
+            system_instruction += f"\n[Relevant Context]:\n{cognitive_context}"
 
         session_meta = {
             "session_id": sess_id,
@@ -306,6 +344,16 @@ class FridayOrchestrator:
         confirmed: bool = False,
         confirmation_token: str | None = None
     ) -> AsyncGenerator[str, None]:
+        if self._execution_engine:
+            async for chunk in self._execution_engine.execute_stream(
+                prompt=prompt,
+                session_id=session_id,
+                provider_name=provider_name,
+                confirmed=confirmed,
+                confirmation_token=confirmation_token,
+            ):
+                yield chunk
+            return
         sess_id = session_id or str(uuid.uuid4())
         if self._event_bus:
             self._event_bus.publish_background(FridayEvent(topic="ConversationReceived", data={
@@ -342,6 +390,16 @@ class FridayOrchestrator:
                 else:
                     tool_output = f"Error executing tool: {exec_result.error}"
 
+        # Cognitive Core enrichment for stream path
+        stream_cognitive_ctx = ""
+        if self.cognitive_core:
+            try:
+                retrieval = await self.cognitive_core.retrieve_relevant_context(prompt, top_k=3)
+                if retrieval.get("combined_context"):
+                    stream_cognitive_ctx = retrieval["combined_context"]
+            except Exception as e:
+                logger.debug(f"CognitiveCore stream retrieval skipped: {e}")
+
         sys_context = SystemContext()
         session = self.memory.get_or_create_session(sess_id)
         
@@ -364,6 +422,8 @@ class FridayOrchestrator:
             system_instruction += f"\n[Executed Tool: {tool_used}. Output results: {tool_output}]"
         if stream_vision_str:
             system_instruction += stream_vision_str
+        if stream_cognitive_ctx:
+            system_instruction += f"\n[Relevant Context]:\n{stream_cognitive_ctx}"
 
         session_meta = {
             "session_id": sess_id,

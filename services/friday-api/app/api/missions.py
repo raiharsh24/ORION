@@ -286,7 +286,7 @@ async def resume_mission(mission_id: str, manager: MissionManager = Depends(get_
         status=mission.status.value
     )
 
-@router.post("/missions/cancel", response_model=StatusToggleResponse)
+@router.post("/missions/{mission_id}/cancel", response_model=StatusToggleResponse)
 async def cancel_mission(mission_id: str, manager: MissionManager = Depends(get_mission_manager)) -> StatusToggleResponse:
     mission = manager._active_missions.get(mission_id)
     if not mission:

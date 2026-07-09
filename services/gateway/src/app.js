@@ -24,6 +24,9 @@ app.use(cors({
 // Apply response body compression
 app.use(compression());
 
+// ---------------- Proxy Endpoints (Targeting Python Core) ----------------
+app.use('/', pythonProxy());
+
 // Parse requests
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -55,9 +58,6 @@ app.get('/status', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
-// ---------------- Proxy Endpoints (Targeting Python Core) ----------------
-app.use('/', pythonProxy());
 
 // ---------------- API Endpoints ----------------
 

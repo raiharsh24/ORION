@@ -6,6 +6,7 @@ from app.memory.schema import SessionMemory, ChatMessage
 from app.memory.store import JSONStore, InMemoryStore, SQLiteStore
 from app.memory.manager import MemoryManager
 from app.memory.serializer import MemorySerializer
+from app.memory.semantic import SemanticMemoryStore
 from app.memory.episodic import EpisodicMemory
 from app.memory.graph import KnowledgeGraph
 from app.memory.learning import LearningEngine
@@ -15,7 +16,7 @@ class MemoryEngine:
     """
     Main MemoryEngine service registered inside FridayServiceContainer.
     Integrates MemoryManager, EpisodicMemory, KnowledgeGraph, LearningEngine,
-    and MemoryConsolidator into a unified hierarchy.
+    MemoryConsolidator, and SemanticMemoryStore into a unified hierarchy.
     """
     def __init__(self) -> None:
         self._manager: Optional[MemoryManager] = None
@@ -23,6 +24,7 @@ class MemoryEngine:
         self._graph: Optional[KnowledgeGraph] = None
         self._learning: Optional[LearningEngine] = None
         self._consolidator: Optional[MemoryConsolidator] = None
+        self._semantic: Optional[SemanticMemoryStore] = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -71,7 +73,18 @@ class MemoryEngine:
             store = InMemoryStore()
             
         self._event_bus = kernel.get_service("event_bus")
-        self._manager = MemoryManager(store=store, event_bus=self._event_bus)
+
+        # Initialize SemanticMemoryStore for vector-based memory retrieval
+        self._semantic = SemanticMemoryStore(
+            persist_dir=config.paths.persist_dir if config and config.paths else ".friday_kb"
+        )
+        logger.info(f"SemanticMemoryStore initialized with persist_dir: {config.paths.persist_dir if config and config.paths else '.friday_kb'}")
+
+        self._manager = MemoryManager(
+            store=store,
+            event_bus=self._event_bus,
+            semantic_store=self._semantic,
+        )
 
         # Initialize intelligence sub-components sharing the same store
         self._episodic = EpisodicMemory(store=store)
@@ -128,15 +141,19 @@ class MemoryEngine:
         consolidator_health = self._consolidator.health() if self._consolidator else {"status": "NOT_CONFIGURED"}
         learning_stats = self._learning.get_stats() if self._learning else {}
         graph_stats = self._graph.get_stats() if self._graph else {}
+        semantic_health = self._semantic.health() if self._semantic else {"status": "NOT_CONFIGURED"}
+        semantic_count = self._manager.semantic_store_count if self._manager else 0
 
         return {
             "status": "HEALTHY",
-            "message": "Memory Engine v2.0 with intelligence subsystems.",
+            "message": "Memory Engine v3.0 with semantic memory integration.",
             "details": {
                 "session_count": sessions_count,
                 "project_count": projects_count,
                 "retrieval_latency_ms": round(avg_latency, 2),
                 "errors_count": self._manager.errors_count,
+                "semantic_store": semantic_health,
+                "semantic_entries_count": semantic_count,
                 "consolidator": consolidator_health,
                 "learning": learning_stats,
                 "knowledge_graph": graph_stats,
@@ -163,6 +180,12 @@ class MemoryEngine:
         if not self._learning:
             raise RuntimeError("MemoryEngine not initialized.")
         return self._learning
+
+    @property
+    def semantic(self) -> 'SemanticMemoryStore':
+        if not self._semantic:
+            raise RuntimeError("MemoryEngine not initialized.")
+        return self._semantic
 
     @property
     def consolidator(self) -> MemoryConsolidator:

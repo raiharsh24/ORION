@@ -7,6 +7,7 @@ from app.memory.learning import LearningEngine
 from app.memory.consolidator import MemoryConsolidator
 from app.memory.manager import MemoryManager
 from app.memory.retriever import MemoryRetriever
+from app.memory.semantic import SemanticMemoryStore
 from app.memory.store import MemoryStore, InMemoryStore, JSONStore, SQLiteStore
 from app.memory.schema import MemoryEntry, SessionMemory, UserMemory, ProjectMemory, WorkingMemory
 
@@ -26,6 +27,7 @@ __all__ = [
     "MemoryConsolidator",
     "MemoryManager",
     "MemoryRetriever",
+    "SemanticMemoryStore",
     "MemoryStore",
     "InMemoryStore",
     "JSONStore",

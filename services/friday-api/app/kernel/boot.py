@@ -1,4 +1,6 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
+
+from app.tools.base_tool import BaseTool
 from loguru import logger
 
 from app.kernel.container import FridayServiceContainer
@@ -93,6 +95,9 @@ from app.planning.planner import PlanningEngine
 
 # Phase 9 Mission Runtime
 from app.runtime.runtime import MissionRuntime
+
+# Cognitive Core (Milestone 2 — Unified Planner, Knowledge Graph, Orchestration Facade)
+from app.cognitive_core.core import CognitiveCore
 
 # Alpha 5.0 Workflow Runtime
 from app.workflow_runtime.persistence import WorkflowPersistence
@@ -349,6 +354,64 @@ class BootManager:
         universal_tool_registry = UniversalToolRegistry(event_bus=event_bus)
         self._container.register_singleton("universal_tool_registry", universal_tool_registry)
         kernel.module_registry.register_module("universal_tool_registry", "1.0.0", ["event_bus"], universal_tool_registry)
+
+        # ── Phase 1: Activate the Universal Tool Registry ────────────────────
+        # Populate it from every existing tool so discovery, selection and
+        # health reporting work. The legacy registry (core_tool_registry)
+        # keeps the executable BaseTool instances; the universal registry is
+        # the source of truth for tool *metadata / discovery / selection*.
+        from app.tools.adapter import register_tool
+        from app.tools.desktop_input_tools import (
+            MouseMoveTool, MouseClickTool, MouseDoubleClickTool, MouseDragDropTool,
+            KeyboardTypeTool, KeyboardShortcutTool, WindowFocusTool,
+            CaptureWindowTool, CaptureRegionTool,
+        )
+        from app.tools.vision_tools import (
+            ScreenshotCaptureTool, ImageAnalysisTool, OCRTool,
+            ScreenContextTool, ClipboardImageTool,
+        )
+
+        _dc = self._container.get("desktop_controller")
+        _registered_ids: List[str] = []
+
+        # 1) Tools already instantiated in the legacy registry.
+        for _name, _tool in core_tool_registry.list_tools().items():
+            if isinstance(_tool, BaseTool):
+                register_tool(universal_tool_registry, _tool, tool_id=_name)
+                _registered_ids.append(_name)
+
+        # 2) Desktop input tools (previously never registered anywhere).
+        _desktop_input = {
+            MouseMoveTool: "desktop.mouse_move",
+            MouseClickTool: "desktop.mouse_click",
+            MouseDoubleClickTool: "desktop.mouse_double_click",
+            MouseDragDropTool: "desktop.mouse_drag_drop",
+            KeyboardTypeTool: "desktop.keyboard_type",
+            KeyboardShortcutTool: "desktop.keyboard_shortcut",
+            WindowFocusTool: "desktop.window_focus",
+            CaptureWindowTool: "desktop.capture_window",
+            CaptureRegionTool: "desktop.capture_region",
+        }
+        for _cls, _tid in _desktop_input.items():
+            register_tool(universal_tool_registry, _cls(_dc), tool_id=_tid)
+            _registered_ids.append(_tid)
+
+        # 3) Vision tools (vision_engine is optional and wired later at Step 14).
+        _vision = {
+            ScreenshotCaptureTool: "vision.screenshot_capture",
+            ImageAnalysisTool: "vision.image_analysis",
+            OCRTool: "vision.ocr",
+            ScreenContextTool: "vision.screen_context",
+            ClipboardImageTool: "vision.clipboard_image",
+        }
+        for _cls, _tid in _vision.items():
+            register_tool(universal_tool_registry, _cls(_dc, None), tool_id=_tid)
+            _registered_ids.append(_tid)
+
+        logger.info(
+            f"Universal Tool Registry activated with {len(_registered_ids)} tools: {_registered_ids}"
+        )
+
         kernel.capability_registry.register_capability(
             name="UniversalToolRegistry",
             module_name="universal_tool_registry",
@@ -754,7 +817,58 @@ class BootManager:
         except Exception as e:
             logger.error(f"Failed to initialize Cognitive Planning Engine: {str(e)}")
             raise e
-        
+
+        # Step 7qr: Initialize Cognitive Core (Milestone 2 — Planner + Graph + Orchestration)
+        logger.info("Boot Step 7qr: Initialize Cognitive Core...")
+        try:
+            cognitive_core = CognitiveCore(
+                event_bus=event_bus,
+                planning_engine=planning_engine,
+                universal_tool_registry=universal_tool_registry,
+            )
+            self._container.register_singleton("cognitive_core", cognitive_core)
+            kernel.module_registry.register_module(
+                "cognitive_core", "1.0.0",
+                ["event_bus", "planning_engine", "universal_tool_registry"],
+                cognitive_core,
+            )
+            kernel.capability_registry.register_capability(
+                name="CognitiveCore",
+                module_name="cognitive_core",
+                description="Unified facade: UnifiedPlanner + CognitiveGraph + SemanticMemory orchestration with failure recovery and hybrid retrieval",
+            )
+            logger.info("Cognitive Core registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Cognitive Core: {str(e)}")
+            raise e
+
+        # Step 7rs: Initialize Unified Execution Engine (Milestone 4)
+        logger.info("Boot Step 7rs: Initialize Unified Execution Engine...")
+        try:
+            from app.execution.integration import create_execution_engine
+            execution_engine = create_execution_engine(
+                kernel,
+                config=None,
+            )
+            self._container.register_singleton("execution_engine", execution_engine)
+            kernel.module_registry.register_module(
+                "execution_engine", "1.0.0",
+                ["event_bus", "llm_router", "memory_engine", "planner",
+                 "tool_registry", "runtime_scheduler_bridge", "mission_runtime",
+                 "cognitive_core", "tool_selection_engine", "tool_execution_engine",
+                 "plugin_runtime"],
+                execution_engine,
+            )
+            kernel.capability_registry.register_capability(
+                name="UnifiedExecutionEngine",
+                module_name="execution_engine",
+                description="Milestone 4 unified execution pipeline with cancellation, retry, timeout, middleware, progress events, and per-stage metrics",
+            )
+            logger.info("Unified Execution Engine registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Unified Execution Engine: {str(e)}")
+            raise e
+
         # Step 7r: Initialize Autonomous Mission Runtime (Phase 9 Sprint 1)
         logger.info("Boot Step 7r: Initialize Autonomous Mission Runtime...")
         try:

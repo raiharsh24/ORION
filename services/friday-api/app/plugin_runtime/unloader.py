@@ -30,7 +30,14 @@ class PluginUnloader:
         start = time.time()
 
         try:
-            err_count_start = inst.error_count
+            plugin_instance = inst.metadata.get("plugin_instance")
+            if plugin_instance is not None:
+                try:
+                    await plugin_instance.on_disable()
+                    await plugin_instance.on_unload()
+                except Exception as e:
+                    logger.warning(f"Plugin '{plugin_id}' lifecycle hooks error: {e}")
+
             self._cleanup_permissions(plugin_id)
             self._cleanup_monitor(plugin_id)
 

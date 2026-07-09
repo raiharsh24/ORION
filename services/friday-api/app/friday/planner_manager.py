@@ -21,8 +21,10 @@ class PlannerManager:
     Coordinates Intent Analysis, Goal Extraction, Memory checking,
     Capability checking, Task classification, Plan Validation, and EventBus dispatching.
     """
-    def __init__(self, event_bus: Optional[Any] = None) -> None:
+    def __init__(self, event_bus: Optional[Any] = None,
+                 tool_registry: Optional[Any] = None) -> None:
         self._event_bus = event_bus
+        self._tool_registry = tool_registry
         self.intent_analyzer = IntentAnalyzer()
         self.goal_extractor = GoalExtractor()
         self.capability_resolver = CapabilityResolver()
@@ -37,6 +39,19 @@ class PlannerManager:
         self.validation_failures = 0
         self.clarification_count = 0
         self.errors_count = 0
+
+    def get_registered_tool_ids(self) -> List[str]:
+        """Return tool ids known to the Universal Tool Registry (if wired in).
+
+        Lets the planner consult the live tool registry for awareness without
+        changing planning behaviour.
+        """
+        if self._tool_registry is not None and hasattr(self._tool_registry, "list_tools"):
+            try:
+                return [t.id for t in self._tool_registry.list_tools()]
+            except Exception:
+                return []
+        return []
 
     def _safe_publish(self, event: FridayEvent) -> None:
         if not self._event_bus:

@@ -1,0 +1,14 @@
+{
+  "id": "browser_automation",
+  "name": "Browser Automation",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Navigate web pages, extract content, and fill forms using Playwright",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "network", "description": "Access web pages"},
+    {"id": "browser.control", "description": "Control browser automation"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

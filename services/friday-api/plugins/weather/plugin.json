@@ -1,0 +1,13 @@
+{
+  "id": "weather",
+  "name": "Weather",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Fetch current weather for a given city using wttr.in",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "network", "description": "Fetch weather data from wttr.in"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

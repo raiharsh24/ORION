@@ -54,7 +54,7 @@ class AgentOrchestrator:
                 agent_id=agent.agent_id,
                 name=agent.name,
                 role=agent.role,
-                capabilities=[c.name for c in agent.capabilities],
+                capabilities=agent.capabilities,
                 tools=agent.tools,
                 permissions=agent.permissions,
                 priority=agent.priority,

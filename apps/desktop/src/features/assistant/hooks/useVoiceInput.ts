@@ -23,7 +23,7 @@ export interface UseVoiceInputOptions {
 }
 
 export function useVoiceInput(
-  wsUrl: string = 'ws://localhost:5000/ws/voice',
+  wsUrl: string = 'ws://localhost:8000/ws/voice',
   options?: UseVoiceInputOptions
 ): UseVoiceInputResult {
   const [isRecording, setIsRecording] = useState(false);

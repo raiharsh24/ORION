@@ -1,0 +1,13 @@
+{
+  "id": "vscode_helper",
+  "name": "VS Code Helper",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Open files, folders, and search in VS Code",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "terminal.execute", "description": "Launch VS Code via terminal"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

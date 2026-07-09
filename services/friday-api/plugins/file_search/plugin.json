@@ -1,0 +1,13 @@
+{
+  "id": "file_search",
+  "name": "File Search",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Search for files by name pattern and content text",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "filesystem.read", "description": "Read file system to search files"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

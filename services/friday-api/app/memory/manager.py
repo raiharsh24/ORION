@@ -1,6 +1,6 @@
 import time
 import hashlib
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from loguru import logger
 
 from app.memory.schema import (
@@ -17,16 +17,29 @@ from app.memory.events import (
 )
 from app.events.events import FridayEvent
 
+if TYPE_CHECKING:
+    from app.memory.semantic import SemanticMemoryStore
+
 class MemoryManager:
     """
     Orchestrates the active layers of Working, Session, User, and Project memory.
     Saves state to a MemoryStore implementation, handles callback hooks for the EventBus,
     and coordinates ranking retrievals.
+
+    When a SemanticMemoryStore is connected, all saved memories are automatically
+    embedded and stored for semantic retrieval. The retrieval path performs hybrid
+    keyword + semantic scoring without breaking the existing synchronous API.
     """
-    def __init__(self, store: Optional[MemoryStore] = None, event_bus: Optional[Any] = None) -> None:
+    def __init__(
+        self,
+        store: Optional[MemoryStore] = None,
+        event_bus: Optional[Any] = None,
+        semantic_store: Optional['SemanticMemoryStore'] = None,
+    ) -> None:
         self._store = store or InMemoryStore()
         self._event_bus = event_bus
-        self._retriever = MemoryRetriever()
+        self._semantic_store = semantic_store
+        self._retriever = MemoryRetriever(semantic_store=semantic_store)
         
         # Working memory is request/thread level, kept here for default queries
         self._working_memory = WorkingMemory()
@@ -35,6 +48,7 @@ class MemoryManager:
         self.retrieval_latency_sum = 0.0
         self.retrieval_count = 0
         self.errors_count = 0
+        self.semantic_store_count = 0
 
     def get_working_memory(self) -> WorkingMemory:
         return self._working_memory
@@ -54,10 +68,34 @@ class MemoryManager:
         self.save_session(session)
         return session
 
+    def _store_semantic_entries(self, entries: List[MemoryEntry]) -> None:
+        """Store MemoryEntry objects in the semantic vector store (sync)."""
+        if not self._semantic_store or not entries:
+            return
+        try:
+            self._semantic_store.store_memories_sync(entries)
+            self.semantic_store_count += len(entries)
+        except Exception as e:
+            logger.warning(f"Semantic store error (non-blocking): {e}")
+
     def save_session(self, session: SessionMemory) -> None:
         key = f"session:{session.session_id}"
         session.updated_at = time.time()
         self._store.put(key, MemorySerializer.serialize_session(session))
+        # Store recent messages in semantic store
+        if self._semantic_store and session.messages:
+            recent = session.messages[-5:]
+            entries = [
+                MemoryEntry(
+                    content=f"{msg.role}: {msg.content}",
+                    category="chat",
+                    importance=5,
+                    timestamp=msg.timestamp,
+                    metadata={"session_id": session.session_id}
+                )
+                for msg in recent
+            ]
+            self._store_semantic_entries(entries)
         self._safe_publish(MemoryUpdated(
             memory_id=session.session_id, category="session",
             data={"session_id": session.session_id, "message_count": len(session.messages)}
@@ -81,6 +119,18 @@ class MemoryManager:
         key = f"user:{user.user_id}"
         user.updated_at = time.time()
         self._store.put(key, MemorySerializer.serialize_user(user))
+        if self._semantic_store and user.preferences:
+            entries = [
+                MemoryEntry(
+                    content=f"User preferred {key}: {val}",
+                    category="preference",
+                    importance=8,
+                    timestamp=user.updated_at,
+                    metadata={"user_id": user.user_id, "preference_key": key}
+                )
+                for key, val in user.preferences.items()
+            ]
+            self._store_semantic_entries(entries)
 
     def get_project_memory(self, project_id: str) -> ProjectMemory:
         key = f"project:{project_id}"
@@ -100,6 +150,33 @@ class MemoryManager:
         key = f"project:{project.project_id}"
         project.updated_at = time.time()
         self._store.put(key, MemorySerializer.serialize_project(project))
+        if self._semantic_store:
+            entries: List[MemoryEntry] = []
+            for dec in project.decisions:
+                entries.append(MemoryEntry(
+                    content=f"Project decision: {dec.get('content', '')}",
+                    category="decision",
+                    importance=dec.get("importance", 7),
+                    timestamp=dec.get("timestamp", project.updated_at),
+                    metadata={"project_id": project.project_id}
+                ))
+            for todo in project.todos:
+                entries.append(MemoryEntry(
+                    content=f"Project TODO: {todo.get('content', '')} (Status: {todo.get('status', 'pending')})",
+                    category="todo",
+                    importance=todo.get("importance", 5),
+                    timestamp=todo.get("timestamp", project.updated_at),
+                    metadata={"project_id": project.project_id}
+                ))
+            for m_name, m_status in project.milestones.items():
+                entries.append(MemoryEntry(
+                    content=f"Project milestone '{m_name}' status: {m_status}",
+                    category="milestone",
+                    importance=6,
+                    timestamp=project.updated_at,
+                    metadata={"project_id": project.project_id}
+                ))
+            self._store_semantic_entries(entries)
 
     def _safe_publish(self, event: FridayEvent) -> None:
         if not self._event_bus:
@@ -124,11 +201,16 @@ class MemoryManager:
         session_id: Optional[str] = None,
         project_id: Optional[str] = None,
         user_id: str = "default_user",
-        limit: int = 5
+        limit: int = 5,
+        use_semantic: bool = True,
     ) -> List[MemoryEntry]:
         """
         Gathers memory objects from all memory layers and performs deterministic ranking.
         Includes mission/project/preference affinity scoring.
+
+        When `use_semantic` is True and a SemanticMemoryStore is connected,
+        delegates semantic scoring to MemoryRetriever.retrieve() which computes
+        on the same candidate objects, eliminating UUID alignment bugs.
         """
         start_time = time.time()
         user_mem = self.get_user_memory(user_id)
@@ -141,6 +223,10 @@ class MemoryManager:
         if session_id:
             affinity_context["session_id"] = session_id
 
+        # Delegate semantic scoring to MemoryRetriever.retrieve() which
+        # computes on its own candidate objects (eliminates UUID misalignment).
+        semantic_scores: Optional[Dict[str, float]] = None if use_semantic else {}
+
         results = self._retriever.retrieve(
             query=query,
             user_memory=user_mem,
@@ -148,6 +234,7 @@ class MemoryManager:
             session_memory=sess_mem,
             limit=limit,
             affinity_context=affinity_context,
+            semantic_scores=semantic_scores,
         )
 
         latency = (time.time() - start_time) * 1000.0  # in ms

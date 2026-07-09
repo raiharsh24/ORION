@@ -1,0 +1,13 @@
+{
+  "id": "knowledge_search",
+  "name": "Knowledge Search",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Search FRIDAY's knowledge base and semantic memory",
+  "entry_point": "main",
+  "permissions": [
+    {"id": "memory.read", "description": "Read from semantic memory store"}
+  ],
+  "dependencies": [],
+  "min_friday_version": "1.0.0"
+}

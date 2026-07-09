@@ -2,6 +2,8 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const targets = [
   '/ask', '/api/ask',
+  '/chat', '/api/chat',
+  '/chat/stream', '/api/chat/stream',
   '/kernel', '/api/kernel',
   '/missions', '/api/missions',
   '/telemetry', '/api/telemetry',
@@ -18,6 +20,7 @@ const targets = [
   '/version', '/api/version',
   '/metrics', '/api/metrics',
   '/vision', '/api/vision',
+  '/atlas', '/api/atlas',
   '/runtime_missions', '/api/runtime_missions',
   '/workflow_runtime', '/api/workflow_runtime',
   '/memory_inspector', '/api/memory_inspector',

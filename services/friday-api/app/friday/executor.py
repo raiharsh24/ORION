@@ -85,13 +85,9 @@ class ToolExecutor:
         self,
         plan: Any
     ) -> Optional[ToolExecutionResult]:
-        """
-        Lightweight confirmation check that does NOT execute the tool.
-        Returns a ToolExecutionResult with confirmation_required=True if confirmation is needed, or None.
-        Uses the ToolEngine's PermissionManager when kernel is available, otherwise the fallback path.
-        """
         tool_name = getattr(plan, "tool_name", None) or getattr(plan, "tool", None)
         args = getattr(plan, "args", {})
+        
 
         from app.kernel.kernel import FridayKernel
         kernel = FridayKernel.get_instance()
@@ -123,7 +119,6 @@ class ToolExecutor:
                 confirmation_required=True, confirmation_token=token
             )
 
-        # Fallback: check using tool-level requires_confirmation
         from app.friday.tool_permission import PermissionManager
         pm = PermissionManager()
         tool = self.tool_registry.get(tool_name)

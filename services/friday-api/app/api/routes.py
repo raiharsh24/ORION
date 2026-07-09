@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.dependencies import tool_registry
 from fastapi.responses import StreamingResponse
 from app.kernel import FridayKernel, KernelState
+from app.execution.integration import create_execution_engine
 
 router = APIRouter()
 
@@ -25,6 +26,8 @@ async def get_orchestrator() -> FridayOrchestrator:
     prompt_manager = PromptManager()
     embeddings = EmbeddingsManager()
     
+    execution_engine = create_execution_engine(kernel)
+    
     return FridayOrchestrator(
         llm_router=llm_router,
         intent_classifier=intent_classifier,
@@ -35,6 +38,7 @@ async def get_orchestrator() -> FridayOrchestrator:
         runtime_bridge=runtime_bridge,
         event_bus=event_bus,
         mission_runtime=mission_runtime,
+        execution_engine=execution_engine,
     )
 
 @router.post("/ask", response_model=AskResponse)

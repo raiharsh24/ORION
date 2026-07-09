@@ -248,9 +248,10 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         const result = await response.json();
         
         if (result.success === false) {
+          const errorText = result.response || result.error || "Unable to process your request.";
           const assistantMsg: ChatMessage = {
             role: 'assistant',
-            content: "FRIDAY:\nUnable to process your request.",
+            content: `FRIDAY:\n${errorText}`,
             timestamp: Date.now() / 1000
           };
 
@@ -355,38 +356,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
             const chunk = line.substring(6);
             if (chunk === '[DONE]') continue;
             
-            try {
-              const parsed = JSON.parse(chunk);
-              if (parsed.success === false) {
-                accumulated = "FRIDAY:\nUnable to process your request.";
-                break;
-              }
-              
-              const assistantText =
-                parsed.response ??
-                parsed.text ??
-                parsed.message ??
-                "";
-              
-              if (parsed.metadata?.streamCompleted) {
-                accumulated = assistantText;
-                const u = parsed.usage;
-                if (u) {
-                  streamUsage = {
-                    model: parsed.provider || 'gemini-1.5-flash',
-                    prompt_tokens: u.promptTokens ?? 0,
-                    completion_tokens: u.completionTokens ?? 0,
-                    total_tokens: u.totalTokens ?? 0
-                  };
-                }
-              } else {
-                accumulated += assistantText;
-              }
-            } catch (err) {
-              console.warn("Failed to parse stream chunk", chunk, err);
-              accumulated += chunk;
-            }
-
+            // SSE data payloads are plain text (LLM token chunks), not JSON
+            accumulated += chunk;
             set({ streamingMessage: accumulated });
           }
         }
@@ -441,7 +412,7 @@ export const useSystemStore = create<SystemState>((set, get) => ({
         chatMessages: [...state.chatMessages, errMsg],
         streamingMessage: null,
         lastTelemetry: {
-          model: 'gemini-1.5-flash',
+          model: 'unknown',
           prompt_tokens: 0,
           completion_tokens: 0,
           total_tokens: 0,

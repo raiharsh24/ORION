@@ -18,16 +18,16 @@ export const missionApi = {
     apiFetch<Mission>(`${BASE_URL}/missions/${id}`),
     
   startMission: (id: string) => 
-    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/start?mission_id=${id}`, { method: 'POST' }),
+    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/${id}/start`, { method: 'POST' }),
     
   pauseMission: (id: string) => 
-    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/pause?mission_id=${id}`, { method: 'POST' }),
+    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/${id}/pause`, { method: 'POST' }),
     
   resumeMission: (id: string) => 
-    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/resume?mission_id=${id}`, { method: 'POST' }),
+    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/${id}/resume`, { method: 'POST' }),
     
   cancelMission: (id: string) => 
-    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/cancel?mission_id=${id}`, { method: 'POST' }),
+    apiFetch<StatusToggleResponse>(`${BASE_URL}/missions/${id}/cancel`, { method: 'POST' }),
     
   confirmMissionAction: (id: string, approved: boolean) =>
     apiFetch<{ success: boolean }>(`${BASE_URL}/missions/${id}/confirm`, {

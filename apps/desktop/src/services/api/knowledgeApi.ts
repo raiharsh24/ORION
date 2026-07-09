@@ -28,6 +28,25 @@ export interface SearchResponse {
   }[];
 }
 
+export interface AtlasGraphResponse {
+  nodes: any[];
+  links: any[];
+}
+
+export interface AtlasTriggerResponse {
+  status: string;
+  message: string;
+}
+
+export interface AtlasHealthResponse {
+  node_count: number;
+  edge_count: number;
+  active_snapshot_id: string | null;
+  last_indexing_duration: number;
+  cache_status: string;
+  recent_errors: any[];
+}
+
 export const knowledgeApi = {
   index: (req: IndexRequest) => 
     apiFetch<IndexResponse>(`${BASE_URL}/knowledge/index`, {
@@ -40,4 +59,34 @@ export const knowledgeApi = {
       method: 'POST',
       body: JSON.stringify(req),
     }),
+
+  // ATLAS Live Engine Connectors
+  getGraph: (provider: string, snapshotId?: string) => {
+    const url = snapshotId 
+      ? `${BASE_URL}/atlas/graph?provider=${provider}&snapshot_id=${snapshotId}`
+      : `${BASE_URL}/atlas/graph?provider=${provider}`;
+    return apiFetch<AtlasGraphResponse>(url, {
+      method: 'GET'
+    });
+  },
+
+  triggerIndex: () =>
+    apiFetch<AtlasTriggerResponse>(`${BASE_URL}/atlas/index/trigger`, {
+      method: 'POST'
+    }),
+
+  cancelIndex: () =>
+    apiFetch<AtlasTriggerResponse>(`${BASE_URL}/atlas/index/cancel`, {
+      method: 'POST'
+    }),
+
+  getHealth: () =>
+    apiFetch<AtlasHealthResponse>(`${BASE_URL}/atlas/health`, {
+      method: 'GET'
+    }),
+
+  getSnapshots: () =>
+    apiFetch<any[]>(`${BASE_URL}/atlas/snapshots`, {
+      method: 'GET'
+    })
 };

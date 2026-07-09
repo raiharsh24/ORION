@@ -1,0 +1,13 @@
+- [x] Create TypeScript AST Node.js parser script (services/friday-api/app/friday/parse_ts_ast.js)
+- [x] Implement LanguageParser base class and Python, TS, and Markdown parsers (services/friday-api/app/friday/atlas_parsers.py)
+- [x] Implement SQLite Graph Storage with snapshot versioning (services/friday-api/app/friday/atlas_store.py)
+- [x] Implement incremental background indexer, cancellation, concurrency safety queues (services/friday-api/app/friday/atlas_indexer.py)
+- [x] Create FastAPI routes with SSE progress, health stats, triggers (services/friday-api/app/api/atlas.py)
+- [x] Register new route inside app/api/__init__.py
+- [x] Update client API routes in src/services/api/knowledgeApi.ts
+- [x] Connect useKnowledgeStore store to SSE progress stream and database queries
+- [x] Integrate index progress indicators and trigger button into KnowledgeGraph page UI
+- [x] Update InspectorPanel component to display live expanded metadata details
+- [x] Extend SearchBar component logic for tag and properties searches
+- [x] Add project root FRIDAY.md file manifest definition
+- [x] Verify typescript compilation and pytest suite execution

@@ -1,0 +1,21 @@
+{
+  "id": "calculator",
+  "name": "Calculator",
+  "version": "1.0.0",
+  "author": "FRIDAY SDK",
+  "description": "Basic arithmetic operations (add, subtract, multiply, divide)",
+  "entry_point": "main",
+  "permissions": [],
+  "dependencies": [],
+  "min_friday_version": "1.0.0",
+  "configuration_schema": {
+    "type": "object",
+    "properties": {
+      "precision": {
+        "type": "integer",
+        "default": 2,
+        "description": "Decimal places for results"
+      }
+    }
+  }
+}
