@@ -7,6 +7,8 @@ import type { Agent, CoreState, MemoryEvent } from '../data/mock';
 
 const SERIES_LEN = 42;
 
+export type WorkspaceId = 'command' | 'memory' | 'knowledge' | 'agents' | 'workflows' | 'system' | 'settings';
+
 interface Metric {
   value: number;
   series: number[];
@@ -22,6 +24,10 @@ interface CommandCenterState {
   // Core visual state machine
   coreState: CoreState;
   setCoreState: (s: CoreState) => void;
+
+  // Active center workspace (nav swaps this; the shell persists)
+  activeWorkspace: WorkspaceId;
+  setActiveWorkspace: (id: WorkspaceId) => void;
 
   // Mission control
   missionTitle: string;
@@ -81,6 +87,9 @@ let memCounter = 0;
 export const useCommandCenterStore = create<CommandCenterState>((set, get) => ({
   coreState: 'idle',
   setCoreState: (s) => set({ coreState: s }),
+
+  activeWorkspace: 'command',
+  setActiveWorkspace: (id) => set({ activeWorkspace: id }),
 
   missionTitle: 'Everything is under control',
   missionStatus: 'FRIDAY Protocol Active · AI Core Online',

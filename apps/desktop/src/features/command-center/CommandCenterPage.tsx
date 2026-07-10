@@ -1,20 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { GlassPanel } from './components/panels/GlassPanel';
 import { NavRail } from './components/layout/NavRail';
+import { SystemOverviewPanel } from './components/panels/SystemOverviewPanel';
+import { AICoreStatusPanel } from './components/panels/AICoreStatusPanel';
+import { ActiveAgentsPanel } from './components/panels/ActiveAgentsPanel';
 import { useCommandCenterStore } from './store/useCommandCenterStore';
+import type { WorkspaceId } from './store/useCommandCenterStore';
 import {
-  Activity, Gauge, Users, MonitorDot, Network, Waves, Cpu,
+  MonitorDot, Network, Waves, Cpu,
 } from 'lucide-react';
 
 /**
  * FRIDAY Command Center — the immersive full-screen machine interface.
  *
- * Milestone 1 establishes the 5-region composition, the navigation rail, the
- * reusable glass-panel system, mouse-parallax and the live-data simulation loop.
- * Region bodies marked "M2–M5" are wired with real widgets in later milestones.
+ * The shell (nav rail, side columns, ambient environment, dock) is persistent.
+ * Navigation swaps the CENTER workspace only (Command→AI Core, Knowledge→ATLAS,
+ * Agents→Agent Control, Memory→Memory Vault, Workflows→Builder, System→Diagnostics,
+ * Settings). Center swap + real 3D core arrive in M3; right column M4; dock M5.
  */
 export const CommandCenterPage: React.FC = () => {
-  const [nav, setNav] = useState('command');
+  const activeWorkspace = useCommandCenterStore((s) => s.activeWorkspace);
+  const setActiveWorkspace = useCommandCenterStore((s) => s.setActiveWorkspace);
   const tick = useCommandCenterStore((s) => s.tick);
   const stageRef = useRef<HTMLDivElement>(null);
 
@@ -52,25 +58,19 @@ export const CommandCenterPage: React.FC = () => {
       <div className="pointer-events-none absolute inset-0 noise-overlay" />
 
       <div className="relative z-10 flex h-full">
-        <NavRail active={nav} onSelect={setNav} />
+        <NavRail active={activeWorkspace} onSelect={(id) => setActiveWorkspace(id as WorkspaceId)} />
 
         <div ref={stageRef} className="flex-1 flex flex-col min-w-0">
-          {/* Main 3-column region */}
-          <div className="flex-1 grid grid-cols-[minmax(300px,340px)_1fr_minmax(300px,340px)] gap-4 p-4 min-h-0">
+          {/* Main region: fixed side columns, dominant flexible center */}
+          <div className="flex-1 grid grid-cols-[352px_minmax(0,1fr)_352px] gap-4 p-4 min-h-0">
             {/* ── LEFT COLUMN ── */}
             <div className="flex flex-col gap-4 min-h-0">
-              <GlassPanel title="System Overview" icon={<Activity className="w-3.5 h-3.5" />} live className="flex-1 min-h-0">
-                <RegionStub label="CPU · Memory · GPU · Network sparklines" tag="M2" />
-              </GlassPanel>
-              <GlassPanel title="AI Core Status" icon={<Gauge className="w-3.5 h-3.5" />} className="flex-1 min-h-0">
-                <RegionStub label="Circular HUD + model / context / speed / confidence" tag="M2" />
-              </GlassPanel>
-              <GlassPanel title="Active Agents" icon={<Users className="w-3.5 h-3.5" />} className="flex-1 min-h-0">
-                <RegionStub label="Orion · Atlas · Nova · Echo" tag="M2" />
-              </GlassPanel>
+              <SystemOverviewPanel className="flex-1 min-h-0" />
+              <AICoreStatusPanel className="shrink-0" />
+              <ActiveAgentsPanel className="flex-1 min-h-0" />
             </div>
 
-            {/* ── CENTER: AI CORE ── */}
+            {/* ── CENTER: AI CORE (real 3D + workspace swap in M3) ── */}
             <div
               className="relative flex flex-col items-center min-h-0"
               style={{ transform: 'translate3d(calc(var(--px,0)*-10px), calc(var(--py,0)*-8px), 0)' }}
@@ -92,7 +92,7 @@ export const CommandCenterPage: React.FC = () => {
                 </div>
               </div>
               <div className="absolute bottom-2 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-glow/50">
-                Real 3D core lands in M3
+                {activeWorkspace} workspace · real 3D core lands in M3
               </div>
             </div>
 
