@@ -1,14 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useEffect, useRef } from 'react';
+import { MonitorDot, Network, Waves, Cpu } from 'lucide-react';
 import { GlassPanel } from './components/panels/GlassPanel';
 import { NavRail } from './components/layout/NavRail';
 import { SystemOverviewPanel } from './components/panels/SystemOverviewPanel';
 import { AICoreStatusPanel } from './components/panels/AICoreStatusPanel';
 import { ActiveAgentsPanel } from './components/panels/ActiveAgentsPanel';
+import { CoreSurroundWidgets } from './components/three/CoreSurroundWidgets';
 import { useCommandCenterStore } from './store/useCommandCenterStore';
 import type { WorkspaceId } from './store/useCommandCenterStore';
-import {
-  MonitorDot, Network, Waves, Cpu,
-} from 'lucide-react';
+
+// Heavy 3D core is code-split so the initial route payload stays light.
+const AICore3D = lazy(() => import('./components/three/AICore3D'));
+
+const CoreFallback: React.FC = () => (
+  <div className="w-[520px] h-[520px] max-w-[60vh] max-h-[60vh] rounded-full border border-cyan-border/30 flex items-center justify-center cc-spin-slow">
+    <div className="w-[80%] h-[80%] rounded-full border border-cyan-border/20 cc-spin-rev flex items-center justify-center">
+      <div className="w-[55%] h-[55%] rounded-full border border-cyan-border/40 cc-spin-med flex items-center justify-center">
+        <Cpu className="w-14 h-14 text-cyan-glow cc-text-glow" />
+      </div>
+    </div>
+  </div>
+);
 
 /**
  * FRIDAY Command Center — the immersive full-screen machine interface.
@@ -70,29 +82,19 @@ export const CommandCenterPage: React.FC = () => {
               <ActiveAgentsPanel className="flex-1 min-h-0" />
             </div>
 
-            {/* ── CENTER: AI CORE (real 3D + workspace swap in M3) ── */}
-            <div
-              className="relative flex flex-col items-center min-h-0"
-              style={{ transform: 'translate3d(calc(var(--px,0)*-10px), calc(var(--py,0)*-8px), 0)' }}
-            >
+            {/* ── CENTER: AI CORE (living 3D scene + workspace in M3+) ── */}
+            <div className="relative flex flex-col items-center min-h-0">
               <div className="w-full">
                 <MissionControlStub />
               </div>
-              <div className="flex-1 w-full flex items-center justify-center">
-                <div className="relative flex items-center justify-center">
-                  <div className="w-[520px] h-[520px] max-w-[60vh] max-h-[60vh] rounded-full border border-cyan-border/30 flex items-center justify-center cc-spin-slow">
-                    <div className="w-[80%] h-[80%] rounded-full border border-cyan-border/20 cc-spin-rev flex items-center justify-center">
-                      <div className="w-[55%] h-[55%] rounded-full border border-cyan-border/40 cc-spin-med flex items-center justify-center">
-                        <div className="w-28 h-28 rounded-full bg-cyan-glow/20 blur-xl absolute" />
-                        <Cpu className="w-14 h-14 text-cyan-glow relative z-10 cc-text-glow" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="absolute -bottom-6 w-[420px] h-16 cc-floor-emitter" />
-                </div>
+              <div className="relative flex-1 w-full min-h-0">
+                <Suspense fallback={<CoreFallback />}>
+                  <AICore3D />
+                </Suspense>
+                <CoreSurroundWidgets />
               </div>
               <div className="absolute bottom-2 text-[10px] font-mono uppercase tracking-[0.2em] text-cyan-glow/50">
-                {activeWorkspace} workspace · real 3D core lands in M3
+                {activeWorkspace} workspace · click the core to preview states
               </div>
             </div>
 
