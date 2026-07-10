@@ -8,9 +8,10 @@ import { forceCollide, forceX, forceY } from 'd3-force-3d';
 
 interface GraphCanvasProps {
   onRefReady?: (instance: any) => void;
+  showControls?: boolean;
 }
 
-export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady }) => {
+export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showControls = true }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<any>(null);
 
@@ -662,7 +663,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady }) => {
         <NodeTooltip node={hoveredNode} x={tooltipPos.x} y={tooltipPos.y} />
       )}
 
-      {/* Floating Controls Panel */}
+      {showControls && (
       <div 
         style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 40 }}
         className="bg-zinc-900/90 border border-zinc-800/80 backdrop-blur-md p-4 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] text-zinc-100 font-sans text-xs w-60 space-y-3 select-none text-left"
@@ -760,6 +761,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady }) => {
           🔒 Bake positions
         </button>
       </div>
+      )}
     </div>
   );
 };

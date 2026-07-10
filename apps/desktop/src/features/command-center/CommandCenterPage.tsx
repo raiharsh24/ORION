@@ -1,10 +1,13 @@
 import React, { lazy, Suspense, useEffect, useRef } from 'react';
-import { MonitorDot, Network, Waves, Cpu } from 'lucide-react';
+import { Cpu } from 'lucide-react';
 import { GlassPanel } from './components/panels/GlassPanel';
 import { NavRail } from './components/layout/NavRail';
 import { SystemOverviewPanel } from './components/panels/SystemOverviewPanel';
 import { AICoreStatusPanel } from './components/panels/AICoreStatusPanel';
 import { ActiveAgentsPanel } from './components/panels/ActiveAgentsPanel';
+import { SystemMonitoringPanel } from './components/panels/SystemMonitoringPanel';
+import { AtlasGraphPanel } from './components/panels/AtlasGraphPanel';
+import { MemoryStreamPanel } from './components/panels/MemoryStreamPanel';
 import { CoreSurroundWidgets } from './components/three/CoreSurroundWidgets';
 import { useCommandCenterStore } from './store/useCommandCenterStore';
 import type { WorkspaceId } from './store/useCommandCenterStore';
@@ -100,15 +103,9 @@ export const CommandCenterPage: React.FC = () => {
 
             {/* ── RIGHT COLUMN ── */}
             <div className="flex flex-col gap-4 min-h-0">
-              <GlassPanel title="System Monitoring" icon={<MonitorDot className="w-3.5 h-3.5" />} live className="flex-1 min-h-0">
-                <RegionStub label="CPU · Memory · GPU radial gauges" tag="M4" />
-              </GlassPanel>
-              <GlassPanel title="Knowledge Graph — ATLAS" icon={<Network className="w-3.5 h-3.5" />} className="flex-1 min-h-0">
-                <RegionStub label="Embedded interactive ATLAS graph" tag="M4" />
-              </GlassPanel>
-              <GlassPanel title="Memory Stream" icon={<Waves className="w-3.5 h-3.5" />} live liveColor="green" className="flex-1 min-h-0">
-                <RegionStub label="Recent memory events timeline" tag="M4" />
-              </GlassPanel>
+              <SystemMonitoringPanel className="flex-1 min-h-0" />
+              <AtlasGraphPanel className="flex-[1.4] min-h-0" />
+              <MemoryStreamPanel className="flex-1 min-h-0" />
             </div>
           </div>
 

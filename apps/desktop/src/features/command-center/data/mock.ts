@@ -74,6 +74,20 @@ export const SUBTASKS_SEED = [
   { id: 's4', label: 'Draft report', done: false },
 ];
 
+export interface SystemProcess {
+  pid: number;
+  name: string;
+  cpu: number;
+}
+
+export const INITIAL_PROCESSES: SystemProcess[] = [
+  { pid: 1042, name: 'friday-core', cpu: 18 },
+  { pid: 1188, name: 'atlas-indexer', cpu: 12 },
+  { pid: 1210, name: 'agent-runtime', cpu: 9 },
+  { pid: 1331, name: 'vector-store', cpu: 6 },
+  { pid: 1402, name: 'websocket-gw', cpu: 4 },
+];
+
 // ── small numeric helpers for live-data simulation ──
 export const clamp = (v: number, min = 0, max = 100) => Math.min(max, Math.max(min, v));
 

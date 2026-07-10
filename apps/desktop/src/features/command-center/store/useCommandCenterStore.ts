@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import {
   INITIAL_AGENTS, INITIAL_MEMORY, MEMORY_SAMPLES,
-  SUBTASKS_SEED, clamp, randomWalk, seedSeries,
+  SUBTASKS_SEED, INITIAL_PROCESSES, clamp, randomWalk, seedSeries,
 } from '../data/mock';
-import type { Agent, CoreState, MemoryEvent } from '../data/mock';
+import type { Agent, CoreState, MemoryEvent, SystemProcess } from '../data/mock';
 
 const SERIES_LEN = 42;
 
@@ -54,6 +54,11 @@ interface CommandCenterState {
 
   // Energy reactor
   powerLevel: number;      // %
+
+  // System telemetry
+  runningProcesses: SystemProcess[];
+  activeSession: string;
+  apiLatency: number;      // ms (fallback when backend telemetry unavailable)
 
   // Agents
   agents: Agent[];
@@ -112,6 +117,10 @@ export const useCommandCenterStore = create<CommandCenterState>((set, get) => ({
 
   powerLevel: 87,
 
+  runningProcesses: INITIAL_PROCESSES.map((p) => ({ ...p })),
+  activeSession: 'sess_7f3a2b91',
+  apiLatency: 64,
+
   agents: INITIAL_AGENTS.map((a) => ({ ...a })),
 
   memoryStream: INITIAL_MEMORY.map((m) => ({ ...m })),
@@ -140,15 +149,21 @@ export const useCommandCenterStore = create<CommandCenterState>((set, get) => ({
   tick: () => {
     const s = get();
 
-    const advance = (m: Metric, volatility: number): Metric => {
-      const value = randomWalk(m.value, volatility);
+    // Bias system load upward while the core is actively thinking / executing
+    const boost =
+      s.coreState === 'thinking' || s.coreState === 'executing' ? 0.18 :
+      s.coreState === 'speaking' ? 0.1 : 0;
+
+    const advance = (m: Metric, volatility: number, bias = 0): Metric => {
+      const raw = m.value + ((Math.random() - 0.5) + bias) * volatility;
+      const value = clamp(raw, 2, 99);
       return { value, series: pushSeries(m.series, value) };
     };
 
-    const cpu = advance(s.cpu, 7);
-    const memory = advance(s.memory, 3);
-    const gpu = advance(s.gpu, 9);
-    const network = advance(s.network, 14);
+    const cpu = advance(s.cpu, 7, boost * 0.6);
+    const memory = advance(s.memory, 3, boost * 0.2);
+    const gpu = advance(s.gpu, 9, boost * 0.7);
+    const network = advance(s.network, 14, boost * 0.3);
 
     // Voice level animates only while listening/speaking
     const active = s.listening || s.coreState === 'speaking';
@@ -171,11 +186,19 @@ export const useCommandCenterStore = create<CommandCenterState>((set, get) => ({
       activity: a.status === 'IDLE' ? clamp(randomWalk(a.activity, 4, 2, 20)) : clamp(randomWalk(a.activity, 8, 20, 96)),
     }));
 
+    const runningProcesses = s.runningProcesses.map((p) => ({
+      ...p,
+      cpu: clamp(randomWalk(p.cpu, 4, 1, 42)),
+    }));
+    const apiLatency = Math.round(clamp(randomWalk(s.apiLatency, 10, 28, 180), 28, 180));
+
     set({
       cpu, memory, gpu, network,
       voiceLevel,
       memoryStream,
       agents,
+      runningProcesses,
+      apiLatency,
       confidence: clamp(randomWalk(s.confidence, 2, 88, 99)),
       responseSpeed: Math.round(clamp(randomWalk(s.responseSpeed, 12, 90, 190), 90, 190)),
       contextWindow: clamp(randomWalk(s.contextWindow, 3, 40, 95)),

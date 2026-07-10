@@ -215,7 +215,23 @@
 .cc-text-glow { text-shadow: 0 0 12px rgba(0, 242, 254, 0.55); }
 .cc-text-glow-orange { text-shadow: 0 0 12px rgba(255, 138, 61, 0.55); }
 
+/* Holographic tint layered over the embedded ATLAS graph (decorative only) */
+.cc-holo-tint {
+  background:
+    radial-gradient(70% 60% at 50% 0%, rgba(0, 242, 254, 0.10), transparent 70%),
+    radial-gradient(60% 60% at 50% 100%, rgba(77, 184, 255, 0.08), transparent 70%);
+  mix-blend-mode: screen;
+}
+
+/* Pulsing highlight for retrieved memories while the core is thinking */
+@keyframes cc-recall-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 242, 254, 0.0); border-color: rgba(0, 242, 254, 0.25); }
+  50% { box-shadow: 0 0 14px 0 rgba(0, 242, 254, 0.35); border-color: rgba(0, 242, 254, 0.6); }
+}
+.cc-recall-glow { animation: cc-recall-pulse 1.6s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .cc-breathe, .cc-sweep::after, .cc-blink,
-  .cc-spin-slow, .cc-spin-med, .cc-spin-rev { animation: none !important; }
+  .cc-spin-slow, .cc-spin-med, .cc-spin-rev,
+  .cc-recall-glow { animation: none !important; }
 }
