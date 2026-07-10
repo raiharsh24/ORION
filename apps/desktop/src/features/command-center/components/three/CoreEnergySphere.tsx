@@ -2,8 +2,13 @@ import { useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useCommandCenterStore } from '../../store/useCommandCenterStore';
+import { useAiStateStore } from '../../sync/useAiStateStore';
 import { VISUAL_ORDER } from './coreConfig';
 import type { CoreVisualParams } from './coreConfig';
+
+const CYAN = new THREE.Color('#00f2fe');
+const RED = new THREE.Color('#ff5470');
+const tmpColor = new THREE.Color();
 
 /**
  * The intelligence itself: a bright cyan energy sphere with an animated
@@ -25,6 +30,8 @@ export const CoreEnergySphere: React.FC<{ params: React.MutableRefObject<CoreVis
 
     coreMat.current.emissiveIntensity =
       (0.9 + p.intensity * 0.5) + Math.sin(t * 2.2) * 0.12 * p.pulse + voice * 1.4;
+    tmpColor.copy(CYAN).lerp(RED, p.accentT);
+    coreMat.current.emissive.copy(tmpColor);
 
     const s = 1 + Math.sin(t * 1.6) * 0.025 + p.pulse * 0.04 + voice * 0.06;
     coreRef.current.scale.setScalar(s);
@@ -42,15 +49,10 @@ export const CoreEnergySphere: React.FC<{ params: React.MutableRefObject<CoreVis
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    const s = useCommandCenterStore.getState();
-    const cur = s.listening ? 'listening' : s.coreState;
+    const s = useAiStateStore.getState();
+    const cur = s.state;
     const next = VISUAL_ORDER[(VISUAL_ORDER.indexOf(cur) + 1) % VISUAL_ORDER.length];
-    if (next === 'listening') {
-      if (!s.listening) s.toggleListening();
-    } else {
-      if (s.listening) s.toggleListening();
-      s.setCoreState(next);
-    }
+    s.transition(next);
   };
 
   return (

@@ -10,6 +10,7 @@ import { AtlasGraphPanel } from './components/panels/AtlasGraphPanel';
 import { MemoryStreamPanel } from './components/panels/MemoryStreamPanel';
 import { CoreSurroundWidgets } from './components/three/CoreSurroundWidgets';
 import { useCommandCenterStore } from './store/useCommandCenterStore';
+import { useAiStateStore, startAiDemo } from './sync/useAiStateStore';
 import type { WorkspaceId } from './store/useCommandCenterStore';
 
 // Heavy 3D core is code-split so the initial route payload stays light.
@@ -36,8 +37,13 @@ const CoreFallback: React.FC = () => (
 export const CommandCenterPage: React.FC = () => {
   const activeWorkspace = useCommandCenterStore((s) => s.activeWorkspace);
   const setActiveWorkspace = useCommandCenterStore((s) => s.setActiveWorkspace);
+  const aiState = useAiStateStore((s) => s.state);
   const tick = useCommandCenterStore((s) => s.tick);
   const stageRef = useRef<HTMLDivElement>(null);
+
+  // Start the ambient synchronization demo (gentle state cycling so the whole
+  // interface is visibly alive even without a live backend). Toggle off for prod.
+  useEffect(() => startAiDemo(), []);
 
   // Live-data simulation loop (~1s cadence).
   useEffect(() => {
@@ -67,7 +73,7 @@ export const CommandCenterPage: React.FC = () => {
   }, []);
 
   return (
-    <div className="cc-root fixed inset-0 h-screen w-screen overflow-hidden text-zinc-100 font-sans select-none">
+    <div className="cc-root fixed inset-0 h-screen w-screen overflow-hidden text-zinc-100 font-sans select-none" data-ai-state={aiState}>
       {/* Atmospheric background layers (upgraded to volumetric 3D room in M6) */}
       <div className="pointer-events-none absolute inset-0 grid-backdrop opacity-40" />
       <div className="pointer-events-none absolute inset-0 noise-overlay" />

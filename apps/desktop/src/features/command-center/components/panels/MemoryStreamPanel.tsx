@@ -1,7 +1,11 @@
 import React, { useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Waves, Database, History, Link2, FileSearch, Cpu } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
 import { useCommandCenterStore } from '../../store/useCommandCenterStore';
+import { useAiStateStore } from '../../sync/useAiStateStore';
+import { useBusEvent } from '../../hooks/useBusEvent';
+import { CC_TRANSITION } from '../../theme/motion';
 import type { MemoryEvent } from '../../data/mock';
 
 const KIND_META: Record<MemoryEvent['kind'], { icon: React.ReactNode; label: string; color: string; important?: boolean }> = {
@@ -25,7 +29,10 @@ const FILTERS: Array<{ key: MemoryEvent['kind'] | 'all'; label: string }> = [
 const MemoryRow: React.FC<{ event: MemoryEvent; highlight?: boolean }> = ({ event, highlight }) => {
   const meta = KIND_META[event.kind];
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={CC_TRANSITION}
       className={`group flex items-start gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
         meta.important
           ? 'border-orange-border/40 bg-orange-glow/5'
@@ -40,14 +47,23 @@ const MemoryRow: React.FC<{ event: MemoryEvent; highlight?: boolean }> = ({ even
         </div>
         <div className="text-[8px] font-mono text-zinc-500 truncate">{event.detail}</div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
 export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className }) => {
   const stream = useCommandCenterStore((s) => s.memoryStream);
-  const thinking = useCommandCenterStore((s) => s.coreState === 'thinking');
+  const aiState = useAiStateStore((s) => s.state);
   const [filter, setFilter] = useState<MemoryEvent['kind'] | 'all'>('all');
+  const [flash, setFlash] = useState(false);
+
+  // React to the event bus: flash when new memory arrives, even from other modules.
+  useBusEvent('MEMORY_UPDATED', () => {
+    setFlash(true);
+    window.setTimeout(() => setFlash(false), 900);
+  });
+
+  const retrieving = aiState === 'memory' || aiState === 'thinking';
 
   const grouped = useMemo(() => {
     const filtered = filter === 'all' ? stream : stream.filter((e) => e.kind === filter);
@@ -82,7 +98,7 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
         ))}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-2">
+      <div className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-2 ${flash ? 'cc-flash-ring' : ''}`}>
         {grouped.length === 0 && (
           <div className="h-full flex items-center justify-center text-[9px] font-mono text-zinc-600">No events</div>
         )}
@@ -93,13 +109,13 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
               <div className="flex-1 h-px bg-zinc-800/60" />
             </div>
             {g.items.map((e) => (
-              <MemoryRow key={e.id} event={e} highlight={thinking && e.kind === 'recall'} />
+              <MemoryRow key={e.id} event={e} highlight={retrieving && e.kind === 'recall'} />
             ))}
           </div>
         ))}
       </div>
 
-      {thinking && (
+      {retrieving && (
         <div className="flex items-center gap-1.5 text-[7.5px] font-mono uppercase tracking-[0.2em] text-cyan-glow/70 cc-blink">
           <Cpu className="w-3 h-3" /> Retrieving memories…
         </div>

@@ -4,6 +4,7 @@ import {
   SUBTASKS_SEED, INITIAL_PROCESSES, clamp, randomWalk, seedSeries,
 } from '../data/mock';
 import type { Agent, CoreState, MemoryEvent, SystemProcess } from '../data/mock';
+import { eventBus } from '../sync/eventBus';
 
 const SERIES_LEN = 42;
 
@@ -205,5 +206,9 @@ export const useCommandCenterStore = create<CommandCenterState>((set, get) => ({
       powerLevel: clamp(randomWalk(s.powerLevel, 2, 70, 99)),
       thoughtsProcessed: s.thoughtsProcessed + Math.floor(Math.random() * 24),
     });
+
+    if (memoryStream !== s.memoryStream) {
+      eventBus.emit('MEMORY_UPDATED', { count: memoryStream.length });
+    }
   },
 }));

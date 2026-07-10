@@ -5,6 +5,7 @@ import { CircularHUD } from '../widgets/CircularHUD';
 import { Sparkline } from '../widgets/Sparkline';
 import { useCommandCenterStore } from '../../store/useCommandCenterStore';
 import { useSystemStore } from '../../../../store/useSystemStore';
+import { useAiStateStore } from '../../sync/useAiStateStore';
 
 const Gauge: React.FC<{ value: number; label: string; color: string; series: number[] }> = ({
   value, label, color, series,
@@ -36,6 +37,7 @@ export const SystemMonitoringPanel: React.FC<{ className?: string }> = ({ classN
   const sessionFallback = useCommandCenterStore((s) => s.activeSession);
   const listening = useCommandCenterStore((s) => s.listening);
   const coreState = useCommandCenterStore((s) => s.coreState);
+  const aiState = useAiStateStore((s) => s.state);
 
   const telemetry = useSystemStore((s) => s.lastTelemetry);
   const execMs = useSystemStore((s) => s.lastExecutionTimeMs);
@@ -72,6 +74,11 @@ export const SystemMonitoringPanel: React.FC<{ className?: string }> = ({ classN
           {listening ? 'Listening' : 'Speaking'}
         </div>
       )}
+
+      <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-400">
+        <span className={`w-1.5 h-1.5 rounded-full ${aiState === 'error' ? 'bg-rose-500' : 'bg-cyan-glow/70'}`} />
+        Friday · {aiState}
+      </div>
 
       <div className="grid grid-cols-2 gap-x-1 gap-y-1">
         <Gauge value={cpu.value} label="CPU" color="#00f2fe" series={cpu.series} />

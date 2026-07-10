@@ -2,6 +2,7 @@ import React, { lazy, Suspense, useEffect, useRef } from 'react';
 import { Network, Search, Loader2 } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
 import { useKnowledgeStore } from '../../../knowledge/store/useKnowledgeStore';
+import { useAiStateStore } from '../../sync/useAiStateStore';
 
 const GraphCanvas = lazy(() => import('../../../knowledge/components/GraphCanvas'));
 
@@ -22,6 +23,15 @@ export const AtlasGraphPanel: React.FC<{ className?: string }> = ({ className })
   const nodes = useKnowledgeStore((s) => s.nodes);
   const searchQuery = useKnowledgeStore((s) => s.searchQuery);
   const setSearchQuery = useKnowledgeStore((s) => s.setSearchQuery);
+  const aiState = useAiStateStore((s) => s.state);
+
+  // The graph "comes alive" while FRIDAY is reasoning / retrieving / expanding.
+  useEffect(() => {
+    const ks = useKnowledgeStore.getState();
+    const active = aiState === 'thinking' || aiState === 'memory' || aiState === 'knowledge';
+    ks.setParticleDensity(active ? 2.4 : 1.0);
+    ks.setGlowStrength(active ? 1.6 : 1.0);
+  }, [aiState]);
 
   useEffect(() => {
     // Load the real graph from the ATLAS engine (no-op / empty if backend absent).
