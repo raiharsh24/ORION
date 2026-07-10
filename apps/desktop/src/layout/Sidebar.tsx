@@ -13,13 +13,15 @@ import {
   ChevronRight,
   Sparkles,
   ListTodo,
-  Cpu
+  Cpu,
+  Command
 } from 'lucide-react';
 
 export const Sidebar: React.FC = () => {
   const { sidebarOpen, toggleSidebar, systemStatus } = useSystemStore();
 
   const navItems = [
+    { name: 'Command Center', path: '/command', icon: Command },
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Assistant', path: '/assistant', icon: MessageSquareCode },
     { name: 'Missions', path: '/missions', icon: ListTodo },
