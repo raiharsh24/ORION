@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 
-from app.tools.base import ToolCategory, PermissionLevel, ToolDependency, ToolHealth
+from app.tools.base import ToolCategory, PermissionLevel, ToolDependency, ToolHealth, ToolParameter, ToolExample
 
 
 @dataclass
@@ -20,7 +20,10 @@ class ToolMetadata:
     supports_streaming: bool
     supports_cancellation: bool
     supports_parallel_execution: bool
-    dependencies: List[ToolDependency]
+    enabled: bool = True
+    parameters: List[ToolParameter] = field(default_factory=list)
+    examples: List[ToolExample] = field(default_factory=list)
+    dependencies: List[ToolDependency] = field(default_factory=list)
     input_schema: Dict[str, Any] = field(default_factory=dict)
     output_schema: Dict[str, Any] = field(default_factory=dict)
     registered_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -42,6 +45,9 @@ class ToolMetadata:
             supports_streaming=definition.supports_streaming,
             supports_cancellation=definition.supports_cancellation,
             supports_parallel_execution=definition.supports_parallel_execution,
+            enabled=definition.enabled,
+            parameters=list(definition.parameters),
+            examples=list(definition.examples),
             dependencies=list(definition.dependencies),
             input_schema=dict(definition.input_schema),
             output_schema=dict(definition.output_schema),

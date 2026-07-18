@@ -142,6 +142,7 @@ class FridayKernel:
             
         logger.info("Kernel shutdown sequence initiated.")
         self._state = KernelState.SHUTTING_DOWN
+        self._clear_health_cache()
         if self._context:
             self._context.state = KernelState.SHUTTING_DOWN
             
@@ -178,6 +179,7 @@ class FridayKernel:
         Registers a dependency in the container registry (Backward compatibility wrapper).
         """
         self._container.register(name, service, lazy=lazy)
+        self._clear_health_cache()
         
         # Register in the module registry as well to support lifecycle transitions
         self._module_registry.register_module(
@@ -242,11 +244,27 @@ class FridayKernel:
         """
         return self._container.list_services()
 
+    _health_cache: Optional[KernelHealth] = None
+    _health_cache_time: float = 0.0
+    HEALTH_CACHE_TTL: float = 5.0
+
+    def _clear_health_cache(self) -> None:
+        self._health_cache = None
+        self._health_cache_time = 0.0
+
     def health(self) -> KernelHealth:
         """
         Consolidates the active health checks of the registered subsystems,
         falling back to default checks for backward compatibility.
+
+        Results are cached for HEALTH_CACHE_TTL seconds.
+        Cleared on kernel shutdown/state changes.
         """
+        import time
+        now = time.time()
+        if self._health_cache is not None and (now - self._health_cache_time) < self.HEALTH_CACHE_TTL:
+            return self._health_cache
+
         planner_svc = self.get_service("planner")
         knowledge_svc = self.get_service("knowledge_engine")
         memory_svc = self.get_service("memory_engine")
@@ -395,7 +413,7 @@ class FridayKernel:
         self._health_monitor.report_health("mission_runtime", rt_health.status, rt_health.message)
         self._health_monitor.report_health("vision_engine", v_health.status, v_health.message)
             
-        return KernelHealth(
+        result = KernelHealth(
             kernel_status=overall,
             planner=p_health,
             knowledge=k_health,
@@ -439,6 +457,10 @@ class FridayKernel:
             mission_runtime=rt_health,
             vision_engine=v_health,
         )
+
+        self._health_cache = result
+        self._health_cache_time = time.time()
+        return result
 
     def state(self) -> KernelState:
         """

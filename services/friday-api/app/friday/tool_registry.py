@@ -1,6 +1,23 @@
+"""
+DEPRECATED: Legacy ToolRegistry.
+
+This module is retained for backward compatibility. New code should use
+``app.tools.registry.ToolRegistry`` (the Universal Tool Registry) instead.
+
+The legacy registry is still populated during boot at
+``app.core.dependencies.tool_registry`` and is used as the source of
+executable ``BaseTool`` instances by the ``ToolExecutionEngine`` bridge.
+"""
+import warnings
 from typing import Dict, Any, Callable
 from loguru import logger
 from app.tools.base_tool import BaseTool
+
+warnings.warn(
+    "app.friday.tool_registry is deprecated. Use app.tools.registry instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 class FunctionToolWrapper(BaseTool):
     """
@@ -28,7 +45,7 @@ class FunctionToolWrapper(BaseTool):
 
 class ToolRegistry:
     """
-    Registry for managing and retrieving executable system tools.
+    DEPRECATED: Legacy ToolRegistry. Use app.tools.registry.ToolRegistry instead.
     """
     def __init__(self) -> None:
         self._registry: Dict[str, BaseTool] = {}

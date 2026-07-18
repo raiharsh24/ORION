@@ -1,9 +1,11 @@
 import React from 'react';
 import type { Mission } from '../../types';
+import type { ExecutionStatePayload } from '../../../../services/realtime/eventTypes';
 
 // 1. TypeScript interface for Props
 export interface MissionDetailsProps {
   mission: Mission | null;
+  execState?: ExecutionStatePayload;
   isLoading?: boolean;
   hasError?: boolean;
 }
@@ -11,6 +13,7 @@ export interface MissionDetailsProps {
 // 2. Export component
 export const MissionDetails: React.FC<MissionDetailsProps> = ({
   mission,
+  execState,
   isLoading = false,
   hasError = false,
 }) => {
@@ -115,6 +118,43 @@ export const MissionDetails: React.FC<MissionDetailsProps> = ({
               <span className="col-span-2 text-red-400 leading-normal bg-red-950/20 border border-red-900/30 p-2 rounded-lg font-bold">
                 {mission.error}
               </span>
+            </div>
+          )}
+
+          {/* Execution State from live pipeline */}
+          {execState && execState.execution_stage !== 'idle' && (
+            <div className="flex flex-col gap-2 mt-4 border-t border-matte-border/10 pt-4">
+              <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Live Execution State</span>
+              <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-matte-border/10">
+                <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Stage</span>
+                <span className="col-span-2 text-cyan-glow font-bold">{execState.execution_stage}</span>
+              </div>
+              {execState.active_task && (
+                <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-matte-border/10">
+                  <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Active Task</span>
+                  <span className="col-span-2 text-zinc-200 font-bold">{execState.active_task}</span>
+                </div>
+              )}
+              {execState.selected_tool && (
+                <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-matte-border/10">
+                  <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Selected Tool</span>
+                  <span className="col-span-2 text-purple-400 font-bold">{execState.selected_tool}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-matte-border/10">
+                <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Confidence</span>
+                <span className="col-span-2">
+                  <span className={`font-bold ${execState.confidence > 0.7 ? 'text-emerald-400' : execState.confidence > 0.4 ? 'text-orange-400' : 'text-zinc-400'}`}>
+                    {(execState.confidence * 100).toFixed(0)}%
+                  </span>
+                </span>
+              </div>
+              {execState.completed_tasks.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 py-1.5 border-b border-matte-border/10">
+                  <span className="text-zinc-500 uppercase tracking-wider text-[9px]">Done</span>
+                  <span className="col-span-2 text-emerald-400">{execState.completed_tasks.length} / {execState.planner_tasks.length} tasks</span>
+                </div>
+              )}
             </div>
           )}
 

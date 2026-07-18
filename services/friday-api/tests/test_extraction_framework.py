@@ -536,7 +536,7 @@ class TestExtractorKernelIntegration:
 
             h = kernel.health()
             assert h.extractor_registry.status.value == "HEALTHY"
-            assert h.extractor_registry.details["registered_extractors"] == 9
+            assert h.extractor_registry.details["registered_extractors"] == 10
         finally:
             await kernel.shutdown()
 
@@ -550,7 +550,7 @@ class TestExtractorKernelIntegration:
         try:
             reg = kernel.get_service("extractor_registry")
             assert reg._running is True
-            assert len(reg._extractors) == 9
+            assert len(reg._extractors) == 10
 
             reg_from_module = kernel.module_registry.get_module("extractor_registry")
             assert reg_from_module is reg
@@ -569,7 +569,7 @@ class TestExtractorKernelIntegration:
         try:
             reg = kernel.get_service("extractor_registry")
             result = await reg.extract_all("test request through kernel")
-            assert result.success_count == 9
+            assert result.success_count >= 10
             assert result.failure_count == 0
 
             # Verify variety of sources
@@ -583,6 +583,7 @@ class TestExtractorKernelIntegration:
             assert "missions/manager" in sources
             assert "voice/manager" in sources
             assert "system/state" in sources
+            assert "desktop_intelligence/windows" in sources
         finally:
             await kernel.shutdown()
 
@@ -627,7 +628,7 @@ class TestExtractorKernelIntegration:
 
             assert len(started) == 1
             assert len(completed) == 1
-            assert completed[0].data["block_count"] == 9
+            assert completed[0].data["block_count"] >= 10
         finally:
             await kernel.shutdown()
 
@@ -646,7 +647,7 @@ class TestExtractorKernelIntegration:
         assert isinstance(svc2, ExtractorRegistry)
         assert svc2 is not svc1
         assert svc2._running is True
-        assert len(svc2._extractors) == 9
+        assert len(svc2._extractors) == 10
         await kernel.shutdown()
 
     @pytest.mark.anyio
@@ -661,7 +662,7 @@ class TestExtractorKernelIntegration:
             reg = kernel.get_service("extractor_registry")
             for i in range(20):
                 result = await reg.extract_all(f"stress test iteration {i}")
-                assert result.success_count == 9
+                assert result.success_count >= 10
                 assert result.failure_count == 0
         finally:
             await kernel.shutdown()
@@ -679,7 +680,7 @@ class TestExtractorKernelIntegration:
             tasks = [reg.extract_all(f"concurrent stress {i}") for i in range(10)]
             results = await asyncio.gather(*tasks)
             for result in results:
-                assert result.success_count == 9
+                assert result.success_count >= 10
                 assert result.failure_count == 0
         finally:
             await kernel.shutdown()

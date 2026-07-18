@@ -5,28 +5,28 @@
       {
         "role": "user",
         "content": "Compatible query",
-        "timestamp": 1783574661.3917012
+        "timestamp": 1783658565.713322
       },
       {
         "role": "assistant",
         "content": "Compatible response",
-        "timestamp": 1783574661.3924448
+        "timestamp": 1783658565.713927
       }
     ],
     "summary": "custom summary",
-    "created_at": 1783574661.387488,
-    "updated_at": 1783574661.394163,
+    "created_at": 1783658565.707912,
+    "updated_at": 1783658565.7153442,
     "context": "active-flow",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
   },
   "consolidated:fact:sess_999": {
-    "id": "d9c23584-1e6d-428d-8906-d38aa2cc51c5",
+    "id": "3d19ce9d-99d9-4409-8dbe-dc98d5c099fb",
     "content": "Session summary: custom summary",
     "category": "general",
     "importance": 6,
-    "timestamp": 1783575367.4122252,
+    "timestamp": 1783658579.355103,
     "expiration": null,
     "metadata": {
       "source": "consolidation",
@@ -34,218 +34,61 @@
       "message_count": 2
     }
   },
-  "session:c08d18aa-fe8d-4c23-b277-ece8f7ee4f5d": {
-    "session_id": "c08d18aa-fe8d-4c23-b277-ece8f7ee4f5d",
+  "session:9cd3f7f5-07a0-4aca-86d7-b06cc378c928": {
+    "session_id": "9cd3f7f5-07a0-4aca-86d7-b06cc378c928",
     "messages": [
       {
         "role": "user",
         "content": "Hello FRIDAY",
-        "timestamp": 1783574671.5412695
+        "timestamp": 1783658575.0361826
       },
       {
         "role": "assistant",
         "content": "Mocked Gemini Response text.",
-        "timestamp": 1783574671.5419858
+        "timestamp": 1783658575.0371766
       }
     ],
     "summary": "Summary: Completed conversation with 2 turns (1 user, 1 assistant). Last user topic: Hello FRIDAY.",
-    "created_at": 1783574671.390221,
-    "updated_at": 1783574671.5549695,
+    "created_at": 1783658574.7920523,
+    "updated_at": 1783658575.0508964,
     "context": "Intent: CHAT",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
   },
-  "session:f0a206f9-76df-43fb-9945-0bff034b5e0e": {
-    "session_id": "f0a206f9-76df-43fb-9945-0bff034b5e0e",
+  "session:6a430eb7-73b6-4325-a7ef-9cc9608eaca8": {
+    "session_id": "6a430eb7-73b6-4325-a7ef-9cc9608eaca8",
     "messages": [
       {
         "role": "user",
         "content": "stream test",
-        "timestamp": 1783574674.7909515
+        "timestamp": 1783658579.0921392
       },
       {
         "role": "assistant",
         "content": "Hello world",
-        "timestamp": 1783574674.7957404
+        "timestamp": 1783658579.0976076
       }
     ],
     "summary": "Conversation session initialized.",
-    "created_at": 1783574673.2409153,
-    "updated_at": 1783574674.796906,
+    "created_at": 1783658577.169094,
+    "updated_at": 1783658579.098514,
     "context": "Intent: CHAT (streamed)",
     "tool_used": null,
     "tool_output": null,
     "metadata": {}
   },
-  "consolidated:fact:f0a206f9-76df-43fb-9945-0bff034b5e0e": {
-    "id": "de1af191-8432-4419-8cd0-33a7901abbd5",
+  "consolidated:fact:6a430eb7-73b6-4325-a7ef-9cc9608eaca8": {
+    "id": "115bf711-0d9d-43e5-bd8e-17679770a7a7",
     "content": "Session summary: Conversation session initialized.",
     "category": "general",
     "importance": 6,
-    "timestamp": 1783575367.4156945,
+    "timestamp": 1783658579.355714,
     "expiration": null,
     "metadata": {
       "source": "consolidation",
-      "session_id": "f0a206f9-76df-43fb-9945-0bff034b5e0e",
+      "session_id": "6a430eb7-73b6-4325-a7ef-9cc9608eaca8",
       "message_count": 2
     }
-  },
-  "session:af0c404c-8527-4292-9ef9-270fc7d0b7be": {
-    "session_id": "af0c404c-8527-4292-9ef9-270fc7d0b7be",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello FRIDAY",
-        "timestamp": 1783574863.2971468
-      },
-      {
-        "role": "assistant",
-        "content": "Mocked Gemini Response text.",
-        "timestamp": 1783574863.2982392
-      }
-    ],
-    "summary": "Summary: Completed conversation with 2 turns (1 user, 1 assistant). Last user topic: Hello FRIDAY.",
-    "created_at": 1783574863.1596947,
-    "updated_at": 1783574863.3225064,
-    "context": "Intent: CHAT",
-    "tool_used": null,
-    "tool_output": null,
-    "metadata": {}
-  },
-  "consolidated:fact:af0c404c-8527-4292-9ef9-270fc7d0b7be": {
-    "id": "117fc20d-34e7-49ac-9a7d-948a8db88db3",
-    "content": "Session summary: Conversation session initialized.",
-    "category": "general",
-    "importance": 6,
-    "timestamp": 1783574863.3092241,
-    "expiration": null,
-    "metadata": {
-      "source": "consolidation",
-      "session_id": "af0c404c-8527-4292-9ef9-270fc7d0b7be",
-      "message_count": 2
-    }
-  },
-  "session:f09d9869-1be0-4eaa-8653-f60fb3f0d9fd": {
-    "session_id": "f09d9869-1be0-4eaa-8653-f60fb3f0d9fd",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello FRIDAY",
-        "timestamp": 1783574870.588728
-      },
-      {
-        "role": "assistant",
-        "content": "Mocked Gemini Response text.",
-        "timestamp": 1783574870.5898829
-      }
-    ],
-    "summary": "Summary: Completed conversation with 2 turns (1 user, 1 assistant). Last user topic: Hello FRIDAY.",
-    "created_at": 1783574870.4517057,
-    "updated_at": 1783574870.6115613,
-    "context": "Intent: CHAT",
-    "tool_used": null,
-    "tool_output": null,
-    "metadata": {}
-  },
-  "consolidated:fact:f09d9869-1be0-4eaa-8653-f60fb3f0d9fd": {
-    "id": "1b54abce-8476-411d-ad2c-0c4a6524ddde",
-    "content": "Session summary: Conversation session initialized.",
-    "category": "general",
-    "importance": 6,
-    "timestamp": 1783574870.5983627,
-    "expiration": null,
-    "metadata": {
-      "source": "consolidation",
-      "session_id": "f09d9869-1be0-4eaa-8653-f60fb3f0d9fd",
-      "message_count": 2
-    }
-  },
-  "session:46fa9871-41c0-4d7e-8c2d-57f2daf544dd": {
-    "session_id": "46fa9871-41c0-4d7e-8c2d-57f2daf544dd",
-    "messages": [
-      {
-        "role": "user",
-        "content": "Hello FRIDAY",
-        "timestamp": 1783574878.5143752
-      },
-      {
-        "role": "assistant",
-        "content": "Mocked Gemini Response text.",
-        "timestamp": 1783574878.5160687
-      }
-    ],
-    "summary": "Summary: Completed conversation with 2 turns (1 user, 1 assistant). Last user topic: Hello FRIDAY.",
-    "created_at": 1783574878.3767781,
-    "updated_at": 1783574878.537173,
-    "context": "Intent: CHAT",
-    "tool_used": null,
-    "tool_output": null,
-    "metadata": {}
-  },
-  "consolidated:fact:46fa9871-41c0-4d7e-8c2d-57f2daf544dd": {
-    "id": "4efee8e8-ea0e-4bc7-8159-a988a0b76407",
-    "content": "Session summary: Conversation session initialized.",
-    "category": "general",
-    "importance": 6,
-    "timestamp": 1783574878.5251148,
-    "expiration": null,
-    "metadata": {
-      "source": "consolidation",
-      "session_id": "46fa9871-41c0-4d7e-8c2d-57f2daf544dd",
-      "message_count": 2
-    }
-  },
-  "session:5f246c3d-5eba-4ab0-a104-1cde6c9ac130": {
-    "session_id": "5f246c3d-5eba-4ab0-a104-1cde6c9ac130",
-    "messages": [
-      {
-        "role": "user",
-        "content": "write file '/tmp/tmplozn44u8' with 'new content'",
-        "timestamp": 1783575367.4095523
-      }
-    ],
-    "summary": "Summary: Completed conversation with 1 turns (1 user, 0 assistant). Last user topic: write file '/tmp/tmplozn44u8' with 'new content'.",
-    "created_at": 1783575367.277698,
-    "updated_at": 1783575367.426971,
-    "context": "nominal",
-    "tool_used": null,
-    "tool_output": null,
-    "metadata": {}
-  },
-  "consolidated:fact:5f246c3d-5eba-4ab0-a104-1cde6c9ac130": {
-    "id": "db27a8fc-d097-4df4-81cb-9abc74450b1a",
-    "content": "Session summary: Conversation session initialized.",
-    "category": "general",
-    "importance": 6,
-    "timestamp": 1783575367.4166322,
-    "expiration": null,
-    "metadata": {
-      "source": "consolidation",
-      "session_id": "5f246c3d-5eba-4ab0-a104-1cde6c9ac130",
-      "message_count": 1
-    }
-  },
-  "session:4cf66839-1009-4d8e-9c25-c61a8dddfc70": {
-    "session_id": "4cf66839-1009-4d8e-9c25-c61a8dddfc70",
-    "messages": [
-      {
-        "role": "user",
-        "content": "write file '/tmp/tmplozn44u8' with 'new content'",
-        "timestamp": 1783575367.6432357
-      },
-      {
-        "role": "assistant",
-        "content": "Model simulated response.",
-        "timestamp": 1783575367.6442022
-      }
-    ],
-    "summary": "Summary: Completed conversation with 2 turns (1 user, 1 assistant). Last user topic: write file '/tmp/tmplozn44u8' with 'new content'.",
-    "created_at": 1783575367.438687,
-    "updated_at": 1783575367.6613612,
-    "context": "Intent: FILE_OPERATION",
-    "tool_used": null,
-    "tool_output": null,
-    "metadata": {}
   }
 }

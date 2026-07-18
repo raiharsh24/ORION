@@ -9,8 +9,10 @@ class Stage(Enum):
     INTENT = "intent"
     PLANNING = "planning"
     MEMORY = "memory"
+    GOAL_PLANNING = "goal_planning"
     TOOL_SELECTION = "tool_selection"
     EXECUTION = "execution"
+    REFLECTION = "reflection"
     ENRICHMENT = "enrichment"
     LLM = "llm"
     RESPONSE = "response"
@@ -65,6 +67,7 @@ class ExecutionContext:
 
     intent: Any = None
     plan: Any = None
+    goal_plan: Any = None
     memory_context: str = ""
     selected_tools: List[Any] = field(default_factory=list)
     tool_output: str = ""
@@ -72,6 +75,8 @@ class ExecutionContext:
     enrichment_context: str = ""
     llm_response: str = ""
     final_response: Any = None
+    reflection_report: Optional[Any] = None
+    workspace_context: Optional[Any] = None
 
     cancellation_token: CancellationToken = field(default_factory=CancellationToken)
     stage_records: Dict[str, StageRecord] = field(default_factory=dict)

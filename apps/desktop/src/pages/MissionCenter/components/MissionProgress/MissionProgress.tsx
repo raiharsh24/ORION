@@ -7,6 +7,8 @@ export interface MissionProgressProps {
   isLoading?: boolean;
   hasError?: boolean;
   durationMs?: number;
+  activeTask?: string;
+  plannerTasks?: { id: string; title: string; status: string }[];
 }
 
 // 2. Export component
@@ -16,6 +18,8 @@ export const MissionProgress: React.FC<MissionProgressProps> = ({
   isLoading = false,
   hasError = false,
   durationMs = 0,
+  activeTask,
+  plannerTasks,
 }) => {
   // 3. Accessibility comments
   // role="progressbar" captures status updates dynamically
@@ -141,6 +145,31 @@ export const MissionProgress: React.FC<MissionProgressProps> = ({
       {status === 'PENDING' && (
         <div className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest mt-1 border-t border-matte-border/10 pt-3 w-full text-center">
           State: <span className="text-zinc-400 font-bold">In Queue</span>
+        </div>
+      )}
+
+      {/* Live Execution State */}
+      {activeTask && (
+        <div className="text-[9px] font-mono mt-1 border-t border-matte-border/10 pt-3 w-full text-center">
+          <div className="text-zinc-500 uppercase tracking-widest mb-1">Active Task</div>
+          <div className="text-cyan-glow font-bold truncate">{activeTask}</div>
+        </div>
+      )}
+      {plannerTasks && plannerTasks.length > 0 && (
+        <div className="text-[9px] font-mono mt-1 border-t border-matte-border/10 pt-3 w-full text-left">
+          <div className="text-zinc-500 uppercase tracking-widest mb-1.5 text-center">Plan Tasks</div>
+          {plannerTasks.map((t) => (
+            <div key={t.id} className="flex items-center gap-1.5 py-0.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                t.status === 'completed' ? 'bg-emerald-400' :
+                t.status === 'running' ? 'bg-cyan-glow animate-pulse' :
+                t.status === 'failed' ? 'bg-red-400' : 'bg-zinc-700'
+              }`} />
+              <span className={`truncate ${t.status === 'completed' ? 'text-emerald-400/70' : 'text-zinc-400'}`}>
+                {t.title}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

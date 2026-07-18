@@ -1,5 +1,5 @@
-import React from 'react';
-import { Users } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Users, Shield, BookOpen, BarChart3, Radio } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
 import { StatusPill } from '../widgets/StatusPill';
 import { useCommandCenterStore } from '../../store/useCommandCenterStore';
@@ -7,54 +7,106 @@ import { useAiStateStore } from '../../sync/useAiStateStore';
 import type { Agent } from '../../data/mock';
 
 const ThinkingDots: React.FC = () => (
-  <span className="inline-flex items-center gap-0.5">
+  <span className="inline-flex items-center gap-0.5 ml-1">
     {[0, 1, 2].map((i) => (
       <span
         key={i}
-        className="w-1 h-1 rounded-full bg-cyan-glow/80"
-        style={{ animation: `cc-blink 1s ease-in-out ${i * 0.18}s infinite` }}
+        className="w-1 h-1 rounded-full bg-emerald-400"
+        style={{ animation: `cc-blink 1.2s ease-in-out ${i * 0.2}s infinite` }}
       />
     ))}
   </span>
 );
 
-const AgentRow: React.FC<{ agent: Agent; working: boolean }> = ({ agent, working }) => {
-  const Icon = agent.icon;
+const AGENT_THEMES: Record<string, { bg: string; border: string; text: string; iconColor: string; defaultIcon: React.ComponentType<any> }> = {
+  orion: { bg: 'bg-purple-950/45', border: 'border-purple-500/35', text: 'text-purple-400', iconColor: '#c084fc', defaultIcon: Shield },
+  atlas: { bg: 'bg-cyan-950/45', border: 'border-cyan-500/35', text: 'text-cyan-400', iconColor: '#38bdf8', defaultIcon: BookOpen },
+  nova: { bg: 'bg-slate-900/60', border: 'border-slate-700/40', text: 'text-zinc-400', iconColor: '#94a3b8', defaultIcon: BarChart3 },
+  echo: { bg: 'bg-orange-950/45', border: 'border-orange-500/35', text: 'text-orange-400', iconColor: '#fb923c', defaultIcon: Radio },
+};
+
+const formatRuntime = (totalSecs: number) => {
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+};
+
+const AgentRow: React.FC<{ agent: Agent; working: boolean; runtime: number; aiState: string }> = ({ 
+  agent, working, runtime, aiState 
+}) => {
+  const theme = AGENT_THEMES[agent.id] || {
+    bg: 'bg-black/50',
+    border: 'border-cyan-border/30',
+    text: 'text-cyan-glow',
+    iconColor: '#00f2fe',
+    defaultIcon: Shield,
+  };
+  const Icon = theme.defaultIcon;
   const statusActive = agent.status === 'ACTIVE' || agent.status === 'BUSY';
+
+  // Compute status description override
+  let labelOverride = undefined;
+  if (agent.status === 'IDLE') {
+    labelOverride = 'Waiting';
+  } else if (agent.status === 'ACTIVE' || agent.status === 'BUSY') {
+    if (aiState === 'thinking') labelOverride = 'Planning';
+    else if (aiState === 'executing' || aiState === 'tool' || aiState === 'workflow') labelOverride = 'Executing';
+    else if (aiState === 'speaking') labelOverride = 'Reflecting';
+    else labelOverride = 'Executing';
+  }
+
   return (
     <div
-      className={`group flex items-center gap-2.5 rounded-xl border px-2 py-1.5 transition-all ${
+      className={`group flex items-center gap-3 rounded-lg border px-2.5 py-1.5 transition-all duration-300 ${
         working
-          ? 'border-cyan-border/60 bg-cyan-glow/5 shadow-[0_0_16px_rgba(0,242,254,0.25)]'
-          : 'border-transparent hover:border-cyan-border/25 hover:bg-white/[0.03]'
+          ? 'border-cyan-border/50 bg-cyan-glow/5 shadow-[0_0_12px_rgba(0,242,254,0.15)]'
+          : 'border-transparent hover:border-zinc-800 hover:bg-white/[0.02]'
       }`}
     >
-      <div className="relative w-8 h-8 rounded-lg bg-black/50 border border-cyan-border/30 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-cyan-glow" />
-        {(statusActive || working) && <span className="absolute inset-0 rounded-lg bg-cyan-glow/5 blur-sm" />}
+      {/* Avatar Container */}
+      <div 
+        className={`relative w-8 h-8 rounded-lg ${theme.bg} border ${theme.border} flex items-center justify-center shrink-0`}
+        style={{ boxShadow: statusActive ? `0 0 10px ${theme.iconColor}20` : 'none' }}
+      >
+        <Icon className="w-4 h-4" style={{ color: theme.iconColor }} />
+        {statusActive && <span className="absolute inset-0 rounded-lg animate-pulse-glow" style={{ backgroundColor: `${theme.iconColor}08` }} />}
       </div>
+
+      {/* Info details */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-zinc-100 truncate">{agent.name}</span>
+        <div className="flex items-center gap-1 leading-none">
+          <span className="text-[10px] font-bold text-zinc-100 truncate">{agent.name}</span>
           {statusActive && <ThinkingDots />}
-          {working && <span className="text-[6.5px] font-mono uppercase tracking-[0.2em] text-cyan-glow/80">exec</span>}
         </div>
-        <div className="text-[8.5px] font-mono text-zinc-500 truncate">{agent.role}</div>
-        {working && (
-          <div className="mt-1 h-1 rounded-full bg-black/50 overflow-hidden border border-matte-border/60">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${agent.activity}%`, background: 'linear-gradient(90deg,#00f2fe,#4db8ff)' }}
-            />
-          </div>
-        )}
+        
+        {/* Current activity readout */}
+        <div className="text-[7.5px] font-mono text-zinc-400 truncate mt-0.5" style={{ color: statusActive ? theme.iconColor : '' }}>
+          {agent.task}
+        </div>
+        
+        {/* Active task details */}
+        <div className="text-[6.5px] font-mono text-zinc-600 truncate mt-0.5">
+          Role: {agent.role}
+        </div>
       </div>
-      <div className="flex flex-col items-end gap-1 shrink-0">
-        <StatusPill status={agent.status} />
-        <div className="w-14 h-1 rounded-full bg-black/50 overflow-hidden border border-matte-border/60">
+
+      {/* Status & Stopwatch Runtime */}
+      <div className="flex flex-col items-end gap-1 shrink-0 text-right">
+        <StatusPill status={agent.status} labelOverride={labelOverride} />
+        
+        {/* Stopwatch indicator */}
+        <span className={`text-[8.5px] font-mono font-semibold tabular-nums mt-0.5 ${statusActive ? 'text-zinc-300' : 'text-zinc-600'}`}>
+          {statusActive ? formatRuntime(runtime) : '--:--'}
+        </span>
+
+        {/* Dynamic progress slider */}
+        <div className="w-14 h-1 rounded-full bg-black/45 overflow-hidden border border-zinc-900 mt-0.5">
           <div
             className="h-full rounded-full transition-all duration-500"
-            style={{ width: `${agent.activity}%`, background: agent.status === 'IDLE' ? '#52525b' : 'linear-gradient(90deg,#00f2fe,#4db8ff)' }}
+            style={{ 
+              width: `${agent.activity}%`, 
+              backgroundColor: agent.status === 'IDLE' ? '#3f3f46' : theme.iconColor 
+            }}
           />
         </div>
       </div>
@@ -66,6 +118,30 @@ export const ActiveAgentsPanel: React.FC<{ className?: string }> = ({ className 
   const agents = useCommandCenterStore((s) => s.agents);
   const aiState = useAiStateStore((s) => s.state);
 
+  // Keep tracking local stopwatch times in seconds for each agent
+  const [runtimes, setRuntimes] = useState<Record<string, number>>({
+    orion: 132,
+    atlas: 84,
+    nova: 0,
+    echo: 485,
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRuntimes((prev) => {
+        const next = { ...prev };
+        agents.forEach((a) => {
+          if (a.status === 'ACTIVE' || a.status === 'BUSY') {
+            next[a.id] = (next[a.id] || 0) + 1;
+          }
+        });
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [agents]);
+
   const busy = aiState === 'executing' || aiState === 'tool' || aiState === 'workflow';
   const workingId = busy
     ? agents.reduce<Agent | null>((best, a) => ((best ? a.activity > best.activity : true) ? a : best), null)?.id
@@ -73,15 +149,24 @@ export const ActiveAgentsPanel: React.FC<{ className?: string }> = ({ className 
 
   return (
     <GlassPanel
-      title="Active Agents"
+      title={`Active Agents (${agents.length})`}
       icon={<Users className="w-3.5 h-3.5" />}
-      action={<span className="text-[8px] font-mono text-zinc-500">{agents.filter((a) => a.status !== 'IDLE').length}/{agents.length} active</span>}
+      live
+      liveColor="green"
       className={className}
-      bodyClassName="flex flex-col justify-between h-[calc(100%-2.75rem)] gap-1"
+      bodyClassName="flex flex-col gap-2 h-[calc(100%-2.75rem)]"
     >
-      {agents.map((a) => (
-        <AgentRow key={a.id} agent={a} working={a.id === workingId} />
-      ))}
+      <div className="flex flex-col gap-1.5 justify-between h-full">
+        {agents.map((a) => (
+          <AgentRow 
+            key={a.id} 
+            agent={a} 
+            working={a.id === workingId} 
+            runtime={runtimes[a.id] || 0}
+            aiState={aiState}
+          />
+        ))}
+      </div>
     </GlassPanel>
   );
 };

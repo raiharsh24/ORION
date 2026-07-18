@@ -1,4 +1,5 @@
-from typing import List, Optional
+import re
+from typing import List, Optional, Set
 
 from app.tools.base import ToolDefinition, ToolHealth, ToolDependency, PermissionLevel
 from app.tool_selection.base import ToolSelectionContext
@@ -11,6 +12,8 @@ class SelectionRules:
 
     @staticmethod
     def is_available(tool: ToolDefinition) -> bool:
+        if not getattr(tool, "enabled", True):
+            return False
         return tool.health.status not in ("error", "unavailable")
 
     @staticmethod
@@ -62,3 +65,43 @@ class SelectionRules:
         if intent_lower in tool.description.lower():
             return True
         return False
+
+    @staticmethod
+    def _tokenize(text: str) -> Set[str]:
+        return set(re.findall(r"[a-z0-9_]+", text.lower()))
+
+    @staticmethod
+    def keyword_overlap(query: str, tool: ToolDefinition) -> float:
+        if not query:
+            return 0.0
+        q_tokens = SelectionRules._tokenize(query)
+        if not q_tokens:
+            return 0.0
+        tool_tokens = (
+            SelectionRules._tokenize(tool.name)
+            | SelectionRules._tokenize(tool.description)
+            | set(t.lower() for t in tool.tags)
+            | SelectionRules._tokenize(tool.category.value)
+        )
+        if not tool_tokens:
+            return 0.0
+        intersection = q_tokens & tool_tokens
+        return round(len(intersection) / len(q_tokens), 4)
+
+    @staticmethod
+    def parameter_compatibility(context: ToolSelectionContext, tool: ToolDefinition) -> float:
+        if not context.required_capabilities:
+            return 0.5
+        if not tool.parameters:
+            return 0.3
+        param_names = {p.name.lower() for p in tool.parameters}
+        caps = {c.lower() for c in context.required_capabilities}
+        if not param_names or not caps:
+            return 0.3
+        matches = caps & param_names
+        if matches:
+            return round(min(1.0, len(matches) / len(caps) + 0.2), 4)
+        desc_caps = sum(1 for c in caps if c in tool.description.lower())
+        if desc_caps > 0:
+            return round(min(1.0, desc_caps / len(caps) * 0.8), 4)
+        return 0.2

@@ -5,6 +5,7 @@ import { NodeTooltip } from './NodeTooltip';
 import type { GraphNode, GraphLink } from '../types';
 // @ts-ignore
 import { forceCollide, forceX, forceY } from 'd3-force-3d';
+import { useExecutionState } from '../../../services/realtime/hooks/useExecutionState';
 
 interface GraphCanvasProps {
   onRefReady?: (instance: any) => void;
@@ -72,6 +73,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
     bakeSettings
   } = useKnowledgeStore();
 
+  const execState = useExecutionState();
   const [gridAngle, setGridAngle] = useState(0);
   const hasFittedRef = useRef(false);
   const settleTimerRef = useRef<any>(null);
@@ -456,15 +458,44 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
         linkDirectionalParticles={(link: any) => {
           const sId = typeof link.source === 'string' ? link.source : link.source.id;
           const tId = typeof link.target === 'string' ? link.target : link.target.id;
+          
+          const activeTool = execState?.selected_tool?.toLowerCase();
+          const matchesTool = activeTool && (sId.toLowerCase().includes(activeTool) || tId.toLowerCase().includes(activeTool));
+          
           const isHighlighted = 
             selectedNodeId === sId || 
             selectedNodeId === tId || 
             hoveredNodeId === sId || 
-            hoveredNodeId === tId;
-          return isHighlighted ? Math.round(3 * particleDensity) : 0;
+            hoveredNodeId === tId ||
+            matchesTool;
+          return isHighlighted ? Math.round(5 * particleDensity) : 0;
         }}
-        linkDirectionalParticleWidth={1.5}
-        linkDirectionalParticleSpeed={0.007}
+        linkDirectionalParticleWidth={(link: any) => {
+          const sId = typeof link.source === 'string' ? link.source : link.source.id;
+          const tId = typeof link.target === 'string' ? link.target : link.target.id;
+          const activeTool = execState?.selected_tool?.toLowerCase();
+          const matchesTool = activeTool && (sId.toLowerCase().includes(activeTool) || tId.toLowerCase().includes(activeTool));
+          const isHighlighted = 
+            selectedNodeId === sId || 
+            selectedNodeId === tId || 
+            hoveredNodeId === sId || 
+            hoveredNodeId === tId ||
+            matchesTool;
+          return isHighlighted ? 2.5 : 1.4;
+        }}
+        linkDirectionalParticleSpeed={(link: any) => {
+          const sId = typeof link.source === 'string' ? link.source : link.source.id;
+          const tId = typeof link.target === 'string' ? link.target : link.target.id;
+          const activeTool = execState?.selected_tool?.toLowerCase();
+          const matchesTool = activeTool && (sId.toLowerCase().includes(activeTool) || tId.toLowerCase().includes(activeTool));
+          const isHighlighted = 
+            selectedNodeId === sId || 
+            selectedNodeId === tId || 
+            hoveredNodeId === sId || 
+            hoveredNodeId === tId ||
+            matchesTool;
+          return isHighlighted ? 0.015 : 0.007;
+        }}
         linkDirectionalParticleColor={() => '#00f2fe'}
         linkColor={getLinkColor}
         linkWidth={getLinkWidth}
@@ -477,8 +508,19 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
 
         nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
           const label = node.title || node.id;
+
+          const isSelected = selectedNodeId === node.id;
+          const isHovered = hoveredNodeId === node.id;
+          const activeTool = execState?.selected_tool?.toLowerCase();
+          const isToolExecuting = activeTool && (node.title.toLowerCase().includes(activeTool) || node.id.toLowerCase().includes(activeTool));
+          const isAccessed = isSelected || isHovered || isToolExecuting;
+
           // 4. Node size hierarchy based on degree centrality
-          const size = getNodeRadius(node);
+          let size = getNodeRadius(node);
+
+          if (isAccessed) {
+            size = size * (1.0 + Math.sin(Date.now() / 100) * 0.1);
+          }
 
           // Frustum culling estimation
           const currentCenter = graphRef.current && graphRef.current.getGraphBbox ? graphRef.current.getGraphBbox() : null;
@@ -557,9 +599,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
             }
           }
 
-          const isSelected = selectedNodeId === node.id;
-          const isHovered = hoveredNodeId === node.id;
-
           let isFaded = false;
           if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
@@ -582,10 +621,9 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
           const isClusterHub = clusterHubs.has(node.id);
           const drawLabel = isSelected || isHovered || labelVisibility || isHub || isClusterHub;
 
-          // 6. Soft glow/bloom on cluster nodes
           if (glowStrength > 0) {
             ctx.shadowColor = strokeColor;
-            const baseBlur = isHub ? 24 : (isSelected || isHovered) ? 18 : 10;
+            const baseBlur = isHub ? 24 : isAccessed ? 24 : 10;
             ctx.shadowBlur = baseBlur * glowStrength;
           }
 
@@ -637,13 +675,15 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onRefReady, showContro
 
           ctx.shadowBlur = 0;
 
-          // Render error or modified pulse glow ring
-          if (drawDetailed && (node.status === 'BROKEN' || node.status === 'ERROR' || (diffMode && modifiedNodeIds.has(node.id)))) {
+          if (drawDetailed && (node.status === 'BROKEN' || node.status === 'ERROR' || isToolExecuting || (diffMode && modifiedNodeIds.has(node.id)))) {
             const pulse = size + 4 + Math.sin(Date.now() / 150) * 1.5;
             ctx.beginPath();
             ctx.arc(node.x, node.y, pulse, 0, 2 * Math.PI, false);
-            ctx.lineWidth = 0.5;
-            ctx.strokeStyle = node.status === 'BROKEN' || node.status === 'ERROR' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(249, 115, 22, 0.35)';
+            ctx.lineWidth = isToolExecuting ? 1.5 : 0.5;
+            ctx.strokeStyle = 
+              node.status === 'BROKEN' || node.status === 'ERROR' ? 'rgba(239, 68, 68, 0.35)' :
+              isToolExecuting ? 'rgba(0, 242, 254, 0.85)' : 
+              'rgba(249, 115, 22, 0.35)';
             ctx.stroke();
           }
 

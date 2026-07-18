@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
+import { MarkdownRenderer } from '../../../components/ui/MarkdownRenderer';
+import { ApprovalDialog } from '../../../components/ui/ApprovalDialog';
 import { useSystemStore } from '../../../store/useSystemStore';
+import { useWorkspaceStore } from '../../../store/useWorkspaceStore';
 import { missionApi } from '../../../services/api/missionApi';
 import { WS_BASE_URL } from '../../../config/api';
 import { useVoiceInput } from '../hooks/useVoiceInput';
@@ -40,7 +43,11 @@ import {
   Workflow,
   Monitor,
   Camera,
-  ClipboardCopy
+  ClipboardCopy,
+  FolderGit,
+  GitBranch,
+  FileCode,
+  X as XIcon
 } from 'lucide-react';
 
 const Soundwave: React.FC<{ state: VoiceState; onBypass: () => void }> = ({ state, onBypass }) => {
@@ -251,6 +258,19 @@ export const AssistantPage: React.FC = () => {
   const [memoryQuery, setMemoryQuery] = useState('');
   const { searchResults, performKnowledgeSearch } = useSystemStore();
 
+  // Workspace intelligence context (project / branch / active file / summary)
+  const {
+    projects,
+    insights: workspaceInsights,
+    activeFilePath,
+    currentProjectPath,
+    loadProjects,
+    loadInsights,
+    setCurrentProject,
+    getCurrentProject,
+  } = useWorkspaceStore();
+  const [showContext, setShowContext] = useState(true);
+
   // 1. Mount client WebSocket EventBus hooks
   const realtime = useRealtime();
   useMissionEvents();
@@ -271,6 +291,7 @@ export const AssistantPage: React.FC = () => {
   const workflowState = useWorkflowStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const voice = useVoiceInput(`${WS_BASE_URL}/ws/voice`, {
     onWakeWordDetected: (sid) => {
@@ -385,26 +406,61 @@ export const AssistantPage: React.FC = () => {
     }
   };
 
-  // Auto-scroll messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Auto-scroll messages — but only when the user is already near the bottom,
+  // so reading earlier output isn't interrupted by streaming tokens.
+  const scrollToBottom = (force = false) => {
+    const container = scrollContainerRef.current;
+    if (container && !force) {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (distanceFromBottom > 140) return;
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior: force ? 'auto' : 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [chatMessages, streamingMessage, voice.voiceState]);
 
+  // Load workspace intelligence context once for the Project Chat.
+  useEffect(() => {
+    if (projects.length === 0) loadProjects();
+    loadInsights();
+  }, [loadProjects, loadInsights, projects.length]);
+
+  const currentProject = getCurrentProject();
+
+  // Build a concise workspace-context preamble. Injected only on the first
+  // message of a conversation so we don't repeat it on every prompt.
+  const buildContextPreamble = (): string => {
+    const proj = currentProject;
+    if (!proj) return '';
+    const bits: string[] = [`Project: ${proj.name}`];
+    if (proj.branch) bits.push(`branch ${proj.branch}`);
+    if (activeFilePath) bits.push(`active file ${activeFilePath.split('/').pop()}`);
+    let ctx = `[Workspace context — ${bits.join(' · ')}]`;
+    if (proj.technologies?.length) ctx += ` Stack: ${proj.technologies.join(', ')}.`;
+    const summary = workspaceInsights?.insights?.[0];
+    if (summary) ctx += ` ${summary}`;
+    return ctx;
+  };
+
+  const sendWithContext = async (prompt: string) => {
+    const isFirstMessage = chatMessages.length === 0 && streamingMessage === null;
+    const preamble = isFirstMessage ? buildContextPreamble() : '';
+    await sendMessageStream(preamble ? `${preamble}\n\n${prompt}` : prompt);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputVal.trim()) return;
     const prompt = inputVal;
     setInputVal('');
-    await sendMessageStream(prompt);
+    await sendWithContext(prompt);
   };
 
   const handleQuickAction = async (prompt: string) => {
     setInputVal('');
-    await sendMessageStream(prompt);
+    await sendWithContext(prompt);
   };
 
   const handleStartMission = async (id: string) => {
@@ -471,7 +527,7 @@ export const AssistantPage: React.FC = () => {
       useSystemStore.getState().clearLogs();
       addLog('Workspace logging console reset.', 'warn');
     } else {
-      await sendMessageStream(action);
+      await sendWithContext(action);
     }
   };
 
@@ -597,6 +653,54 @@ export const AssistantPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Workspace Context Banner (auto-injected into first message) */}
+        {showContext && currentProject && (
+          <div className="bg-cyan-dim/5 border border-cyan-border/20 rounded-2xl px-4 py-2.5 flex-shrink-0 flex items-center gap-3 backdrop-blur-md">
+            <span className="flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-cyan-glow/80 font-bold shrink-0">
+              <FolderGit className="w-3.5 h-3.5" />
+              Context
+            </span>
+            <div className="flex items-center gap-2 flex-1 min-w-0 overflow-x-auto scrollbar-none">
+              {projects.length > 1 ? (
+                <select
+                  value={currentProjectPath ?? currentProject.path}
+                  onChange={(e) => setCurrentProject(e.target.value)}
+                  className="bg-black/40 border border-matte-border rounded-lg px-2 py-1 text-[10px] font-mono text-zinc-200 focus:outline-none focus:border-cyan-glow/60 cursor-pointer shrink-0"
+                  title="Current project"
+                >
+                  {projects.map((p) => (
+                    <option key={p.path} value={p.path}>{p.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-[10px] font-mono text-zinc-200 font-bold shrink-0">{currentProject.name}</span>
+              )}
+              {currentProject.branch && (
+                <span className="flex items-center gap-1 text-[9px] font-mono text-zinc-400 border border-matte-border rounded-lg px-1.5 py-0.5 shrink-0">
+                  <GitBranch className="w-3 h-3 text-cyan-glow/70" />
+                  {currentProject.branch}
+                </span>
+              )}
+              {activeFilePath && (
+                <span className="flex items-center gap-1 text-[9px] font-mono text-amber-300/90 border border-amber-500/20 bg-amber-500/5 rounded-lg px-1.5 py-0.5 shrink-0">
+                  <FileCode className="w-3 h-3" />
+                  {activeFilePath.split('/').pop()}
+                </span>
+              )}
+              {currentProject.technologies?.slice(0, 3).map((t) => (
+                <span key={t} className="text-[8px] font-mono uppercase tracking-wider text-cyan-glow/70 shrink-0">{t}</span>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowContext(false)}
+              title="Hide context"
+              className="p-1 rounded-md text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800 transition-all shrink-0"
+            >
+              <XIcon className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
         {/* Message feed panel with drag & drop zone */}
         <Card
           variant="glow"
@@ -615,7 +719,7 @@ export const AssistantPage: React.FC = () => {
             </div>
           )}
           
-          <div className="flex-1 p-5 space-y-5 overflow-y-auto scrollbar-thin select-text">
+          <div ref={scrollContainerRef} className="flex-1 p-5 space-y-5 overflow-y-auto scrollbar-thin select-text">
             {chatMessages.length === 0 && !streamingMessage && voice.voiceState === 'idle' ? (
               <div className="h-full flex flex-col justify-center items-center text-center opacity-65">
                 <div className="w-12 h-12 rounded-2xl bg-black border border-cyan-border/40 flex items-center justify-center mb-3.5 shadow-[0_0_15px_rgba(0,242,254,0.05)]">
@@ -641,12 +745,12 @@ export const AssistantPage: React.FC = () => {
                       {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                     </div>
                     <div className="space-y-1 w-full">
-                      <div className={`rounded-2xl p-4 text-xs leading-relaxed border whitespace-pre-wrap font-mono select-text
+                      <div className={`rounded-2xl p-4 text-xs leading-relaxed border font-mono select-text
                         ${msg.role === 'user'
-                          ? 'bg-black/30 border-matte-border/50 text-zinc-200'
+                          ? 'bg-black/30 border-matte-border/50 text-zinc-200 whitespace-pre-wrap'
                           : 'bg-cyan-dim/10 border-cyan-border/10 text-zinc-300 shadow-[inset_0_0_15px_rgba(0,242,254,0.02)]'}`}
                       >
-                        {msg.content}
+                        {msg.role === 'user' ? msg.content : <MarkdownRenderer content={msg.content} />}
                       </div>
                       <div className="text-[8px] font-mono text-zinc-600 px-1.5 flex justify-between items-center">
                         <span>{msg.role === 'user' ? 'CLIENT USER' : 'FRIDAY OS'}</span>
@@ -663,9 +767,20 @@ export const AssistantPage: React.FC = () => {
                       <Bot className="w-4 h-4" />
                     </div>
                     <div className="space-y-1 w-full">
-                      <div className="rounded-2xl p-4 text-xs leading-relaxed border bg-cyan-dim/10 border-cyan-border/10 text-zinc-300 shadow-[inset_0_0_15px_rgba(0,242,254,0.02)] whitespace-pre-wrap font-mono">
-                        {streamingMessage || 'Initializing Stream...'}
-                        <span className="inline-block w-1.5 h-3.5 bg-cyan-glow animate-pulse ml-1.5 align-middle" />
+                      <div className="rounded-2xl p-4 text-xs leading-relaxed border bg-cyan-dim/10 border-cyan-border/10 text-zinc-300 shadow-[inset_0_0_15px_rgba(0,242,254,0.02)]">
+                        {streamingMessage ? (
+                          <>
+                            <MarkdownRenderer content={streamingMessage} />
+                            <span className="inline-block w-1.5 h-3.5 bg-cyan-glow animate-pulse ml-1 align-middle" />
+                          </>
+                        ) : (
+                          <span className="flex items-center gap-2 font-mono text-cyan-glow/70">
+                            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            <span className="ml-1">FRIDAY is thinking…</span>
+                          </span>
+                        )}
                       </div>
                       <div className="text-[8px] font-mono text-zinc-600 px-1.5">
                         STREAMING CHUNKS...
@@ -747,35 +862,16 @@ export const AssistantPage: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Destructive actions safety loop confirmation banner */}
-          {pendingConfirmation && (
-            <div className="p-4 border-t border-rose-500/25 bg-rose-950/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom duration-300">
-              <div className="space-y-1">
-                <div className="text-[10px] font-mono font-bold text-rose-400 tracking-widest uppercase flex items-center gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-                  SECURITY SANDBOX VERIFICATION
-                </div>
-                <div className="text-[10px] text-zinc-400 font-mono">
-                  Confirm process call <strong className="text-rose-300 font-semibold">{pendingConfirmation.toolName}</strong> command payload.
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={confirmPendingAction}
-                  className="bg-cyan-glow hover:bg-cyan-glow/85 text-black border-none font-bold text-[10px] tracking-wider px-3.5 py-1.5 h-8 uppercase"
-                >
-                  Approve Call
-                </Button>
-                <Button
-                  onClick={cancelPendingAction}
-                  variant="outline"
-                  className="border-rose-500/25 text-rose-400 hover:bg-rose-500/10 text-[10px] tracking-wider px-3.5 py-1.5 h-8 font-bold uppercase"
-                >
-                  Reject
-                </Button>
-              </div>
-            </div>
-          )}
+          {/* Unified Approval Dialog */}
+          <ApprovalDialog
+            open={!!pendingConfirmation}
+            title="Security Sandbox Verification"
+            prompt={pendingConfirmation ? `Confirm process call ${pendingConfirmation.toolName} command payload.` : ''}
+            toolName={pendingConfirmation?.toolName}
+            args={pendingConfirmation?.args}
+            onApprove={confirmPendingAction}
+            onReject={cancelPendingAction}
+          />
 
           {/* Form input controls */}
           <form onSubmit={handleSubmit} className="p-4 border-t border-matte-border/50 bg-black/35 flex-shrink-0">

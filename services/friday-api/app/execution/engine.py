@@ -3,6 +3,10 @@ from typing import Optional, Dict, Any, AsyncGenerator, List
 from loguru import logger
 
 from app.execution.context import ExecutionContext, Stage, CancelledError
+from app.execution.state import ExecutionStateModel
+from app.goal_planner import GoalPlanner, GoalPlan
+from app.reflection import HeuristicReflectionEngine, ExecutionSnapshot, ReflectionReport
+from app.workspace import WorkspaceScanner, WorkspaceContext, WorkspaceAnalyzer
 from app.execution.config import ExecutionConfig
 from app.execution.middleware import MiddlewareChain, LoggingMiddleware, MetricsMiddleware
 from app.execution.metrics import ExecutionMetrics
@@ -55,6 +59,12 @@ class UnifiedExecutionEngine:
         self._plugin_runtime = plugin_runtime
 
         self._planner = Planner()
+        self._goal_planner = GoalPlanner()
+        self._reflection_engine = HeuristicReflectionEngine()
+        self._workspace_scanner = WorkspaceScanner()
+        self._workspace_analyzer = WorkspaceAnalyzer()
+        self._workspace_context: Optional[WorkspaceContext] = None
+        self._workspace_summary: Optional[Any] = None
         self._tool_executor = ToolExecutor(tool_registry)
         self._config = config or ExecutionConfig()
         self._metrics = ExecutionMetrics()
@@ -102,11 +112,165 @@ class UnifiedExecutionEngine:
             except Exception:
                 pass
 
+    def _ensure_workspace(self) -> WorkspaceContext:
+        if self._workspace_context is None:
+            self._workspace_context = self._workspace_scanner.scan()
+            self._publish(FridayEvent(topic="WorkspaceUpdated", data=self._workspace_context.to_dict()))
+
+            summary = self._workspace_analyzer.analyze(self._workspace_context)
+            self._workspace_summary = summary
+            self._publish(FridayEvent(topic="WorkspaceSummaryUpdated", data=summary.to_dict()))
+
+            logger.info(
+                f"Workspace scanned: project={self._workspace_context.current_project}, "
+                f"langs={self._workspace_context.detected_languages}, "
+                f"framework={self._workspace_context.framework}, "
+                f"health={summary.health_label}"
+            )
+            for rec in summary.recommendations:
+                logger.info(f"  Recommendation [{rec.priority}]: {rec.message}")
+        return self._workspace_context
+
+    def refresh_workspace(self) -> WorkspaceContext:
+        self._workspace_context = self._workspace_scanner.rescan()
+        self._publish(FridayEvent(topic="WorkspaceUpdated", data=self._workspace_context.to_dict()))
+
+        summary = self._workspace_analyzer.analyze(self._workspace_context)
+        self._workspace_summary = summary
+        self._publish(FridayEvent(topic="WorkspaceSummaryUpdated", data=summary.to_dict()))
+
+        return self._workspace_context
+
+    @property
+    def workspace(self) -> Optional[WorkspaceContext]:
+        return self._workspace_context
+
+    def _publish_execution_state(self, ctx: ExecutionContext, stage: str = "") -> None:
+        state = ExecutionStateModel()
+        state.goal = ctx.prompt[:200]
+        state.execution_stage = stage or "idle"
+        state.stage_status = "running"
+
+        if ctx.goal_plan and ctx.goal_plan.task_count > 0:
+            state.planner_tasks = [
+                {"id": t.id, "title": t.title, "capability": t.required_capability,
+                 "status": t.status, "dependencies": t.dependencies}
+                for t in ctx.goal_plan.tasks
+            ]
+            running = [t for t in ctx.goal_plan.tasks if t.status == "running"]
+            if running:
+                state.active_task = running[0].title
+            completed = [t for t in ctx.goal_plan.tasks if t.status == "completed"]
+            state.completed_tasks = [t.title for t in completed]
+
+        if ctx.selected_tools and hasattr(ctx.selected_tools, 'selected_tools') and ctx.selected_tools.selected_tools:
+            top = ctx.selected_tools.selected_tools[0]
+            state.selected_tool = top.tool.id
+            state.confidence = top.confidence
+
+        if ctx.reflection_report is not None:
+            report = ctx.reflection_report
+            state.reflection_score = report.execution_quality_score
+            state.reflection_summary = (
+                f"Succeeded: {len(report.what_succeeded)} | "
+                f"Failed: {len(report.what_failed)} | "
+                f"Score: {report.execution_quality_score:.2f}"
+            )
+
+        self._publish(FridayEvent(topic="ExecutionStateUpdated", data=state.to_dict()))
+
+    def _build_snapshot(self, ctx: ExecutionContext) -> ExecutionSnapshot:
+        tools = []
+        fallback_used = False
+        if ctx.selected_tools and hasattr(ctx.selected_tools, 'selected_tools'):
+            for st in ctx.selected_tools.selected_tools:
+                tools.append({
+                    "id": st.tool.id,
+                    "score": getattr(st, "score", 0.0),
+                    "confidence": getattr(st, "confidence", 0.0),
+                    "is_fallback": getattr(st, "is_fallback", False),
+                    "reason": getattr(st, "selection_reason", ""),
+                })
+                if getattr(st, "is_fallback", False):
+                    fallback_used = True
+
+        confidence = tools[0].get("confidence", 0.0) if tools else 0.0
+
+        completed = []
+        if ctx.goal_plan and ctx.goal_plan.task_count > 0:
+            completed = [
+                {"id": t.id, "title": t.title, "status": t.status}
+                for t in ctx.goal_plan.tasks
+            ]
+
+        exec_stage = ctx.stage_records.get(Stage.EXECUTION.value)
+        duration = exec_stage.duration_ms if exec_stage else 0.0
+
+        tool_output_str = ctx.tool_output or ""
+        success = bool(tool_output_str) and "Error" not in tool_output_str
+
+        return ExecutionSnapshot(
+            execution_id=ctx.execution_id,
+            goal=ctx.prompt[:200],
+            intent=ctx.intent.value if ctx.intent else "unknown",
+            selected_tools=tools,
+            confidence=confidence,
+            execution_duration_ms=duration,
+            success=success,
+            fallback_used=fallback_used,
+            errors=list(ctx.errors),
+            completed_tasks=completed,
+            session_id=ctx.session_id or "",
+        )
+
+    async def _run_reflection(self, ctx: ExecutionContext) -> Optional[ReflectionReport]:
+        try:
+            snapshot = self._build_snapshot(ctx)
+            report = self._reflection_engine.reflect(snapshot)
+            ctx.reflection_report = report
+
+            # Store in memory
+            if ctx.session_id:
+                session = self._memory.get_or_create_session(ctx.session_id)
+                if session.metadata is None:
+                    session.metadata = {}
+                session.metadata["reflection_report"] = report.to_dict()
+
+            # Publish reflection event
+            self._publish(FridayEvent(topic="ReflectionCompleted", data=report.to_dict()))
+
+            # Update execution state with reflection data
+            state = ExecutionStateModel()
+            state.goal = ctx.prompt[:200]
+            state.execution_stage = Stage.REFLECTION.value
+            state.stage_status = "completed"
+            state.reflection_score = report.execution_quality_score
+            state.reflection_summary = (
+                f"Succeeded: {len(report.what_succeeded)} | "
+                f"Failed: {len(report.what_failed)} | "
+                f"Score: {report.execution_quality_score:.2f}"
+            )
+            self._publish(FridayEvent(topic="ExecutionStateUpdated", data=state.to_dict()))
+
+            logger.info(
+                f"Reflection complete: quality={report.execution_quality_score:.2f}, "
+                f"succeeded={len(report.what_succeeded)}, "
+                f"failed={len(report.what_failed)}"
+            )
+
+            return report
+
+        except Exception as e:
+            logger.error(f"Reflection failed: {e}")
+            return None
+
     def _register_stages(self) -> None:
         self._pipeline.register_stage(Stage.PLANNING, self._run_planning)
         self._pipeline.register_stage(Stage.MEMORY, self._run_memory)
+        self._pipeline.register_stage(Stage.GOAL_PLANNING, self._run_goal_planning)
         self._pipeline.register_stage(Stage.TOOL_SELECTION, self._run_tool_selection)
         self._pipeline.register_stage(Stage.EXECUTION, self._run_execution)
+        self._pipeline.register_stage(Stage.REFLECTION, self._run_reflection)
         self._pipeline.register_stage(Stage.ENRICHMENT, self._run_enrichment)
         self._pipeline.register_stage(Stage.LLM, self._run_llm)
         self._pipeline.register_stage(Stage.RESPONSE, self._run_response)
@@ -134,26 +298,99 @@ class UnifiedExecutionEngine:
             session.tool_used = ctx.tool_used
 
         history_str = self._memory.get_history_string(ctx.session_id)
-        ctx.memory_context = history_str
-        return history_str
+
+        ws = self._workspace_context
+        if ws:
+            ctx.memory_context = f"[Workspace]\n{ws.to_context_string()}\n\n{history_str}"
+        else:
+            ctx.memory_context = history_str
+
+        return ctx.memory_context
+
+    async def _run_goal_planning(self, ctx: ExecutionContext) -> Any:
+        self._ensure_workspace()
+        ctx.workspace_context = self._workspace_context
+
+        # Store workspace summary in memory
+        if self._workspace_summary and ctx.session_id:
+            try:
+                session = self._memory.get_or_create_session(ctx.session_id)
+                if session.metadata is None:
+                    session.metadata = {}
+                session.metadata["workspace_summary"] = self._workspace_summary.to_dict()
+            except Exception:
+                pass
+
+        goal_plan = self._goal_planner.create_goal_plan(
+            prompt=ctx.prompt,
+            intent=ctx.intent,
+            plan=ctx.plan,
+            workspace=self._workspace_context,
+        )
+        ctx.goal_plan = goal_plan
+
+        logger.info(f"Goal: {goal_plan.goal}")
+        logger.info(f"Plan: {goal_plan.task_count} task(s), capabilities={goal_plan.capabilities}")
+
+        self._publish_execution_state(ctx, Stage.GOAL_PLANNING.value)
+
+        return goal_plan
 
     async def _run_tool_selection(self, ctx: ExecutionContext) -> Any:
         plan = ctx.plan
         if not plan:
             return None
 
-        if self._tool_selection_engine and hasattr(plan, "steps") and plan.steps:
-            from app.tool_selection.base import ToolSelectionContext
-            sel_ctx = ToolSelectionContext(
-                required_capabilities=getattr(plan, "capabilities", []),
-            )
-            sel_result = await self._tool_selection_engine.select(sel_ctx)
-            ctx.selected_tools = sel_result
-            return sel_result
+        if not self._tool_selection_engine:
+            return None
 
-        return None
+        has_plan_steps = hasattr(plan, "steps") and plan.steps
+        has_goal_tasks = ctx.goal_plan is not None and ctx.goal_plan.task_count > 0
+
+        if not has_plan_steps and not has_goal_tasks:
+            return None
+
+        # Derive capabilities from goal_plan if available, otherwise from execution plan
+        from app.tool_selection.base import ToolSelectionContext
+
+        if has_goal_tasks:
+            capabilities = ctx.goal_plan.capabilities
+        else:
+            capabilities = getattr(plan, "capabilities", [])
+
+        ws = self._workspace_context
+        pipeline_metadata = {}
+        if ws:
+            pipeline_metadata["workspace_framework"] = ws.framework
+            pipeline_metadata["workspace_languages"] = ",".join(ws.detected_languages)
+            pipeline_metadata["workspace_project_type"] = ws.project_type
+
+        sel_ctx = ToolSelectionContext(
+            required_capabilities=capabilities,
+            pipeline_metadata=pipeline_metadata if pipeline_metadata else None,
+        )
+        sel_result = await self._tool_selection_engine.select(sel_ctx)
+        ctx.selected_tools = sel_result
+
+        for st in sel_result.selected_tools:
+            logger.info(
+                f"Tool selected: {st.tool.id} "
+                f"(score={st.score}, confidence={st.confidence}, "
+                f"reason=\"{st.selection_reason}\", "
+                f"fallback={st.is_fallback})"
+            )
+
+        # Log which capabilities mapped to which tools
+        logger.info(f"Execution Result: {len(sel_result.selected_tools)} tool(s) selected")
+
+        self._publish_execution_state(ctx)
+
+        return sel_result
 
     async def _run_execution(self, ctx: ExecutionContext) -> str:
+        if ctx.metadata.get("_iterative_done"):
+            return ctx.tool_output or ""
+
         plan = ctx.plan
         if not plan:
             return ""
@@ -173,23 +410,81 @@ class UnifiedExecutionEngine:
             else:
                 tool_output = f"Error executing tool: {exec_result.error}"
             ctx.tool_output = tool_output
-            return tool_output
+        log_line = f"Exec Result: {'success' if tool_output and 'Error' not in tool_output else 'completed'}"
+        if ctx.selected_tools and hasattr(ctx.selected_tools, 'selected_tools'):
+            tools_str = ", ".join(st.tool.id for st in ctx.selected_tools.selected_tools[:3])
+            log_line += f" tools=[{tools_str}]"
+        logger.info(log_line)
+
+        self._publish_execution_state(ctx)
+
+        return tool_output
 
         if self._tool_execution_engine and ctx.selected_tools and hasattr(ctx.selected_tools, 'selected_tools') and ctx.selected_tools.selected_tools:
             from app.tool_execution.base import ExecutionMode
-            sel_result = await self._tool_execution_engine.execute(
-                selection_result=ctx.selected_tools,
-                mode=ExecutionMode.SEQUENTIAL,
-                global_timeout=120.0,
-                cancellation_token=ctx.cancellation_token,
-            )
-            if sel_result and hasattr(sel_result, 'results') and sel_result.results:
-                outputs = []
-                for r in sel_result.results:
-                    if r.output:
-                        outputs.append(str(r.output))
-                tool_output = "\n".join(outputs)
-                ctx.tool_output = tool_output
+            from app.tool_selection.base import ToolSelectionResult
+
+            # Group selected tools by primary: each primary + its dependencies
+            all_st = ctx.selected_tools.selected_tools
+            primaries = [
+                st for st in all_st
+                if not st.is_fallback and "Dependency of" not in st.selection_reason
+            ]
+
+            fallback_chain: List[str] = []
+            final_output = ""
+            final_sel_result = None
+
+            for rank, primary in enumerate(primaries):
+                if rank > 0:
+                    fallback_chain.append(primary.tool.id)
+                    logger.info(
+                        f"Exec fallback #{rank}: {primary.tool.id} "
+                        f"(confidence={primary.confidence})"
+                    )
+
+                # Build group: primary + its dependencies
+                primary_id = primary.tool.id
+                group = [primary]
+                for dep in primary.tool.dependencies:
+                    dep_st = next(
+                        (st for st in all_st if st.tool.id == dep.tool_id),
+                        None,
+                    )
+                    if dep_st is not None:
+                        group.append(dep_st)
+
+                group_selection = ToolSelectionResult(
+                    selected_tools=group,
+                    selection_scores={st.tool.id: st.score for st in group},
+                    selection_reasons={st.tool.id: st.selection_reason for st in group},
+                )
+
+                sel_result = await self._tool_execution_engine.execute(
+                    selection_result=group_selection,
+                    mode=ExecutionMode.SEQUENTIAL,
+                    global_timeout=120.0,
+                    cancellation_token=ctx.cancellation_token,
+                )
+                final_sel_result = sel_result
+
+                if sel_result and hasattr(sel_result, 'all_succeeded'):
+                    outputs = []
+                    for r in sel_result.results:
+                        if r.output:
+                            outputs.append(str(r.output))
+                    final_output = "\n".join(outputs)
+
+                    if sel_result.all_succeeded:
+                        break
+                else:
+                    break
+
+            if fallback_chain:
+                logger.info(f"Fallback chain: {' -> '.join(fallback_chain)}")
+
+            tool_output = final_output
+            ctx.tool_output = tool_output
 
         elif self._runtime_bridge and plan and getattr(plan, "steps", None):
             try:
@@ -433,8 +728,10 @@ class UnifiedExecutionEngine:
             await self._run_intent(ctx)
             await self._run_planning(ctx)
             await self._run_memory(ctx)
+            await self._run_goal_planning(ctx)
             await self._run_tool_selection(ctx)
             await self._run_execution(ctx)
+            await self._run_reflection(ctx)
             await self._run_enrichment(ctx)
 
             self._memory.add_message(ctx.session_id, "user", prompt)

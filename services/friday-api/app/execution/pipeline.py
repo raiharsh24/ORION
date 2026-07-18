@@ -141,6 +141,7 @@ class ExecutionPipeline:
             Stage.MEMORY,
             Stage.TOOL_SELECTION,
             Stage.EXECUTION,
+            Stage.REFLECTION,
             Stage.ENRICHMENT,
             Stage.LLM,
             Stage.RESPONSE,

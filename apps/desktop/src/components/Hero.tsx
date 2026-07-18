@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Cpu, Shield, Sparkles, ChevronRight, Activity, Globe, Clock } from 'lucide-react';
 import { useSystemStore } from '../store/useSystemStore';
+import { ApprovalDialog } from './ui/ApprovalDialog';
 
 export const Hero: React.FC = () => {
   const [command, setCommand] = useState('');
@@ -15,6 +16,9 @@ export const Hero: React.FC = () => {
   const sendMessageStream = useSystemStore((state) => state.sendMessageStream);
   const streamingMessage = useSystemStore((state) => state.streamingMessage);
   const checkBackendStatus = useSystemStore((state) => state.checkBackendStatus);
+  const confirmPendingAction = useSystemStore((state) => state.confirmPendingAction);
+  const cancelPendingAction = useSystemStore((state) => state.cancelPendingAction);
+  const pendingConfirmation = useSystemStore((state) => state.pendingConfirmation);
 
   const consoleEndRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +189,23 @@ export const Hero: React.FC = () => {
           </button>
         </form>
       </div>
+
+      {/* Approval Dialog (shared component) */}
+      <ApprovalDialog
+        open={!!pendingConfirmation}
+        title="Action Requires Approval"
+        prompt={pendingConfirmation?.prompt || ''}
+        toolName={pendingConfirmation?.toolName}
+        args={pendingConfirmation?.args}
+        onApprove={async () => {
+          await confirmPendingAction();
+          setSystemLogs((prev) => [...prev, 'Action approved and executed.']);
+        }}
+        onReject={() => {
+          cancelPendingAction();
+          setSystemLogs((prev) => [...prev, 'Action cancelled by user.']);
+        }}
+      />
 
       {/* Grid of OS Services */}
       <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl px-4">

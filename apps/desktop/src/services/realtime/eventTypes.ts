@@ -74,6 +74,63 @@ export interface CognitiveLearningEventPayload {
   summary: string;
 }
 
+export interface ExecutionStatePayload {
+  goal: string;
+  planner_tasks: { id: string; title: string; capability: string; status: string; dependencies: string[] }[];
+  active_task: string;
+  selected_tool: string;
+  confidence: number;
+  execution_stage: string;
+  completed_tasks: string[];
+  stage_status: string;
+  reflection_score?: number;
+  reflection_summary?: string;
+}
+
+export interface ReflectionCompletedPayload {
+  execution_id: string;
+  execution_quality_score: number;
+  what_succeeded: string[];
+  what_failed: string[];
+  why: string;
+  possible_improvements: string[];
+  recommended_tool_ordering: string[];
+}
+
+export interface WorkspaceContextPayload {
+  current_project: string;
+  current_git_branch: string;
+  detected_languages: string[];
+  framework: string;
+  build_system: string;
+  package_managers: string[];
+  project_type: string;
+  current_working_directory: string;
+}
+
+export interface RecommendationPayload {
+  message: string;
+  priority: string;
+  category: string;
+}
+
+export interface WorkspaceSummaryPayload {
+  project_name: string;
+  project_type: string;
+  technologies: string[];
+  detected_frameworks: string[];
+  complexity: string;
+  health_score: number;
+  health_label: string;
+  file_count: number;
+  dependency_count: number;
+  git_branch: string;
+  repo_size_bytes: number;
+  important_configs: string[];
+  recommendations: RecommendationPayload[];
+  warnings: string[];
+}
+
 export interface SystemEventMap {
   MissionStarted: Mission;
   MissionUpdated: Mission;
@@ -83,6 +140,10 @@ export interface SystemEventMap {
   TelemetryUpdated: TelemetryUpdatedPayload;
   KernelHealthChanged: KernelHealthChangedPayload;
   ServiceStatusChanged: ServiceStatusChangedPayload;
+  ExecutionStateUpdated: ExecutionStatePayload;
+  ReflectionCompleted: ReflectionCompletedPayload;
+  WorkspaceUpdated: WorkspaceContextPayload;
+  WorkspaceSummaryUpdated: WorkspaceSummaryPayload;
 
   // Cognitive / Phase 10 events
   'cognitive.goal.created': CognitiveGoalEventPayload;

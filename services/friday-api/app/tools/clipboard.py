@@ -1,5 +1,7 @@
+from typing import List
 import os
 import subprocess
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 
 # Global in-memory storage for headless clipboard fallback
@@ -16,7 +18,21 @@ class ClipboardTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Read or write to the system clipboard. Args: op (copy/paste), text (str, optional)"
+        return "Read from or write to the system clipboard."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="op", type="string", description="Operation: copy or paste", required=True, enum_values=["copy", "paste"]),
+            ToolParameter(name="text", type="string", description="Text to copy (required for copy operation)", required=False),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="Copy some text", args={"op": "copy", "text": "Hello from FRIDAY"}, description="Copy text to clipboard"),
+            ToolExample(prompt="Paste clipboard contents", args={"op": "paste"}, description="Read text from clipboard"),
+        ]
 
     def requires_confirmation(self, **kwargs) -> bool:
         return False

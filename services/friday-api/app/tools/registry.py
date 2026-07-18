@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Callable, Any
 from loguru import logger
 
@@ -103,6 +104,41 @@ class ToolRegistry:
 
     def count(self) -> int:
         return len(self._tools)
+
+    # ── Enable / Disable ─────────────────────────────────────────────────
+
+    def set_enabled(self, tool_id: str, enabled: bool) -> bool:
+        tool = self._tools.get(tool_id)
+        if tool is None:
+            return False
+        tool.enabled = enabled
+        tool.updated_at = datetime.now(timezone.utc)
+        logger.info(f"Tool '{tool_id}' {'enabled' if enabled else 'disabled'}")
+        return True
+
+    def is_enabled(self, tool_id: str) -> bool:
+        tool = self._tools.get(tool_id)
+        if tool is None:
+            return False
+        return tool.enabled
+
+    def get_enabled_tools(self) -> List[ToolDefinition]:
+        return [t for t in self._tools.values() if t.enabled]
+
+    def get_disabled_tools(self) -> List[ToolDefinition]:
+        return [t for t in self._tools.values() if not t.enabled]
+
+    # ── Search ────────────────────────────────────────────────────────────
+
+    def search(self, query: str, limit: int = 50) -> List[ToolDefinition]:
+        q = query.lower()
+        results = []
+        for t in self._tools.values():
+            if q in t.name.lower() or q in t.description.lower() or q in t.id.lower():
+                results.append(t)
+                if len(results) >= limit:
+                    break
+        return results
 
     # ── Health ────────────────────────────────────────────────────────────
 

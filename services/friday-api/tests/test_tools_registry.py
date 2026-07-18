@@ -28,6 +28,7 @@ def make_tool(tool_id: str = "test_tool", name: str = "Test Tool",
               category: ToolCategory = ToolCategory.FILESYSTEM,
               permission: PermissionLevel = PermissionLevel.USER,
               tags: list = None, dependencies: list = None,
+              enabled: bool = True,
               **kwargs) -> ToolDefinition:
     return ToolDefinition(
         id=tool_id,
@@ -37,6 +38,7 @@ def make_tool(tool_id: str = "test_tool", name: str = "Test Tool",
         permission_level=permission,
         tags=tags or [],
         dependencies=dependencies or [],
+        enabled=enabled,
         **kwargs,
     )
 
@@ -415,6 +417,79 @@ class TestRegistryNoEventBus:
         t = make_tool()
         registry.register(t)
         assert registry.count() == 1
+
+
+class TestRegistryEnabled:
+    def test_default_enabled(self, registry):
+        t = make_tool("test_tool")
+        registry.register(t)
+        assert t.enabled is True
+        assert registry.is_enabled("test_tool") is True
+
+    def test_set_enabled_false(self, registry):
+        t = make_tool("test_tool")
+        registry.register(t)
+        assert registry.set_enabled("test_tool", False) is True
+        assert registry.is_enabled("test_tool") is False
+
+    def test_set_enabled_true(self, registry):
+        t = make_tool("test_tool", enabled=False)
+        registry.register(t)
+        registry.set_enabled("test_tool", True)
+        assert registry.is_enabled("test_tool") is True
+
+    def test_set_enabled_nonexistent(self, registry):
+        assert registry.set_enabled("nonexistent", False) is False
+
+    def test_get_enabled_tools(self, registry):
+        t1 = make_tool("a", enabled=True)
+        t2 = make_tool("b", enabled=False)
+        t3 = make_tool("c", enabled=True)
+        registry.register(t1)
+        registry.register(t2)
+        registry.register(t3)
+        enabled = registry.get_enabled_tools()
+        assert len(enabled) == 2
+        assert {t.id for t in enabled} == {"a", "c"}
+
+    def test_get_disabled_tools(self, registry):
+        t1 = make_tool("a", enabled=True)
+        t2 = make_tool("b", enabled=False)
+        registry.register(t1)
+        registry.register(t2)
+        disabled = registry.get_disabled_tools()
+        assert len(disabled) == 1
+        assert disabled[0].id == "b"
+
+    def test_is_enabled_nonexistent(self, registry):
+        assert registry.is_enabled("nonexistent") is False
+
+
+class TestRegistrySearch:
+    def test_search_by_name(self, registry):
+        t1 = make_tool("file_read", "File Reader")
+        t2 = make_tool("net_get", "Network Get")
+        registry.register(t1)
+        registry.register(t2)
+        results = registry.search("File")
+        assert len(results) >= 1
+        assert any(r.id == "file_read" for r in results)
+
+    def test_search_by_id(self, registry):
+        t = make_tool("filesystem.read")
+        registry.register(t)
+        results = registry.search("filesystem")
+        assert len(results) >= 1
+
+    def test_search_limit(self, registry):
+        for i in range(10):
+            registry.register(make_tool(f"tool_{i}", f"Tool {i}"))
+        results = registry.search("Tool", limit=5)
+        assert len(results) == 5
+
+    def test_search_empty(self, registry):
+        results = registry.search("nothing")
+        assert results == []
 
 
 class TestRegistryEdgeCases:

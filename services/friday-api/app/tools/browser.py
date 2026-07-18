@@ -1,4 +1,6 @@
+from typing import List
 import httpx
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 
 class BrowserTool(BaseTool):
@@ -11,7 +13,20 @@ class BrowserTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Browse the web or fetch HTML content of a URL. Args: url (str)"
+        return "Fetch the text content of a web page or URL."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="url", type="string", description="The full URL to fetch (including https://)", required=True),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="Fetch example.com", args={"url": "https://example.com"}, description="Fetch the homepage of example.com"),
+            ToolExample(prompt="Read API docs", args={"url": "https://api.github.com"}, description="Fetch GitHub API root endpoint"),
+        ]
 
     def requires_confirmation(self, **kwargs) -> bool:
         return False

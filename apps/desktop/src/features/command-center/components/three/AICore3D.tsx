@@ -13,6 +13,9 @@ import { ParticleField } from './ParticleField';
 import { FloorReactor } from './FloorReactor';
 import { ListeningFx } from './ListeningFx';
 
+import { useSystemStore } from '../../../../store/useSystemStore';
+import { useExecutionState } from '../../../../services/realtime/hooks/useExecutionState';
+
 const CYAN = new THREE.Color('#00f2fe');
 const RED = new THREE.Color('#ff5470');
 const tmpColor = new THREE.Color();
@@ -58,10 +61,28 @@ const Halo: React.FC<{ params: React.MutableRefObject<CoreVisualParams> }> = ({ 
  */
 const CoreScene: React.FC = () => {
   const params = useRef<CoreVisualParams>({ ...STATE_PARAMS.idle });
+  const execState = useExecutionState();
 
   useFrame((_, dt) => {
+    const apiConnected = useSystemStore.getState().apiConnected;
     const cs = useAiStateStore.getState().state;
-    const target = STATE_PARAMS[cs];
+    
+    let targetState = cs;
+    
+    // Connect backend stages to target states
+    if (apiConnected && execState.execution_stage) {
+      const s = execState.execution_stage.toLowerCase();
+      if (s.includes('goal')) targetState = 'listening';
+      else if (s.includes('planning')) targetState = 'thinking';
+      else if (s.includes('memory') || s.includes('recall')) targetState = 'memory';
+      else if (s.includes('knowledge') || s.includes('atlas')) targetState = 'knowledge';
+      else if (s.includes('tool')) targetState = 'tool';
+      else if (s.includes('execution') || s.includes('execute') || s.includes('mcp')) targetState = 'executing';
+      else if (s.includes('reflection') || s.includes('reflect')) targetState = 'speaking';
+      else if (s.includes('completed') || s.includes('done') || s.includes('ready')) targetState = 'idle';
+    }
+
+    const target = STATE_PARAMS[targetState] || STATE_PARAMS.idle;
     const p = params.current;
     const k = 1 - Math.pow(0.0015, dt);
     p.ringSpeed += (target.ringSpeed - p.ringSpeed) * k;

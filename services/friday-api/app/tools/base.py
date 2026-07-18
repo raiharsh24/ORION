@@ -34,6 +34,23 @@ class PermissionLevel(str, Enum):
 
 
 @dataclass
+class ToolParameter:
+    name: str
+    type: str
+    description: str = ""
+    required: bool = False
+    default: Any = None
+    enum_values: Optional[List[str]] = None
+
+
+@dataclass
+class ToolExample:
+    prompt: str
+    args: Dict[str, Any]
+    description: str = ""
+
+
+@dataclass
 class ToolHealth:
     status: str = "unknown"
     last_checked: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -66,6 +83,9 @@ class ToolDefinition:
     supports_streaming: bool = False
     supports_cancellation: bool = False
     supports_parallel_execution: bool = False
+    enabled: bool = True
+    parameters: List[ToolParameter] = field(default_factory=list)
+    examples: List[ToolExample] = field(default_factory=list)
     health: ToolHealth = field(default_factory=ToolHealth)
     dependencies: List[ToolDependency] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)

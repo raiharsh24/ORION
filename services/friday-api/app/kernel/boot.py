@@ -14,6 +14,11 @@ from app.friday.planner import Planner
 from app.friday.knowledge_engine import KnowledgeEngine
 from app.friday.tool_engine import ToolEngine
 from app.desktop.automation import DesktopAutomationService
+
+# Milestone 5 Desktop Intelligence
+from app.desktop_intelligence.service import DesktopIntelligence
+from app.desktop_intelligence.middleware import DesktopContextMiddleware
+from app.desktop_intelligence.extractor import DesktopIntelligenceExtractor
 from app.missions.mission_manager import MissionManager, MissionTelemetry
 from app.missions.mission_history import MissionHistory
 from app.workflow.engine import WorkflowEngine
@@ -895,7 +900,55 @@ class BootManager:
         except Exception as e:
             logger.error(f"Failed to initialize Autonomous Mission Runtime: {str(e)}")
             raise e
-        
+
+        # Step 7s: Initialize MCP Runtime (Phase 6)
+        logger.info("Boot Step 7s: Initialize MCP Runtime...")
+        try:
+            from app.mcp_runtime.base import MCPConnectionConfig, MCPTransportType
+            from app.mcp_runtime.integration import create_mcp_runtime
+
+            universal_tool_registry = self._container.get("universal_tool_registry")
+            legacy_tool_registry = self._container.get("tool_registry")
+
+            mcp_server_configs = [
+                MCPConnectionConfig(
+                    server_name=s.server_name,
+                    transport=MCPTransportType(s.transport),
+                    command=s.command,
+                    args=list(s.args),
+                    url=s.url,
+                    api_key=s.api_key,
+                    timeout_seconds=s.timeout_seconds,
+                    auto_reconnect=s.auto_reconnect,
+                )
+                for s in config.mcp.servers
+            ]
+
+            mcp_registry = await create_mcp_runtime(
+                event_bus=event_bus,
+                universal_registry=universal_tool_registry,
+                legacy_registry=legacy_tool_registry,
+                server_configs=mcp_server_configs,
+            )
+            self._container.register_singleton("mcp_registry", mcp_registry)
+            kernel.module_registry.register_module(
+                "mcp_registry", "1.0.0",
+                ["event_bus", "universal_tool_registry", "tool_registry"],
+                mcp_registry,
+            )
+            kernel.capability_registry.register_capability(
+                name="MCPRuntime",
+                module_name="mcp_registry",
+                description="Phase 6 Universal MCP Runtime — multi-server MCP client registry, tool discovery, and tool call execution",
+            )
+            logger.info(
+                f"MCP Runtime registered in FridayServiceContainer with "
+                f"{len(mcp_server_configs)} configured servers"
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP Runtime: {str(e)}")
+            raise e
+
         # Step 8: Initialize Mission Engine
         logger.info("Boot Step 8: Initialize Mission Engine...")
         telemetry = MissionTelemetry()
@@ -1162,6 +1215,45 @@ class BootManager:
             logger.info("Vision Subsystem registered in FridayServiceContainer.")
         except Exception as e:
             logger.error(f"Failed to initialize Vision Subsystem: {str(e)}")
+            raise e
+
+        # Step 14b: Initialize Desktop Intelligence Service (Milestone 5)
+        logger.info("Boot Step 14b: Initialize Desktop Intelligence Service...")
+        try:
+            desktop_controller = self._container.get("desktop_controller")
+            vision_engine = self._container.get("vision_engine")
+            desktop_intelligence = DesktopIntelligence(
+                desktop_controller=desktop_controller,
+                vision_engine=vision_engine,
+                event_bus=event_bus,
+            )
+            self._container.register_singleton("desktop_intelligence", desktop_intelligence)
+            kernel.module_registry.register_module(
+                "desktop_intelligence", "1.0.0",
+                ["event_bus", "desktop_controller", "vision_engine"],
+                desktop_intelligence,
+            )
+            kernel.capability_registry.register_capability(
+                name="DesktopIntelligence",
+                module_name="desktop_intelligence",
+                description="Milestone 5 unified desktop state aggregation — windows, clipboard, processes, screen context, OCR — for intelligent planning and execution",
+            )
+
+            # Register DesktopIntelligenceExtractor in the extraction pipeline
+            extractor_registry = self._container.get("extractor_registry")
+            di_extractor = DesktopIntelligenceExtractor(desktop_intelligence=desktop_intelligence)
+            extractor_registry.register(di_extractor)
+            logger.info("DesktopIntelligenceExtractor registered in extractor registry.")
+
+            # Wire DesktopContextMiddleware into the execution engine
+            execution_engine = self._container.get("execution_engine")
+            di_middleware = DesktopContextMiddleware(desktop_intelligence=desktop_intelligence)
+            execution_engine.add_middleware(di_middleware)
+            logger.info("DesktopContextMiddleware wired into execution engine.")
+
+            logger.info("Desktop Intelligence Service registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Desktop Intelligence Service: {str(e)}")
             raise e
 
         # Construct Context

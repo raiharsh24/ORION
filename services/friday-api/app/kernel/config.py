@@ -38,6 +38,19 @@ class KnowledgeConfig(BaseModel):
     chunk_overlap: int = 200
     vector_db_type: str = "chromadb"
 
+class MCPServerEntry(BaseModel):
+    server_name: str
+    transport: str = "stdio"
+    command: str = ""
+    args: List[str] = Field(default_factory=list)
+    url: str = ""
+    api_key: Optional[str] = None
+    timeout_seconds: float = 30.0
+    auto_reconnect: bool = True
+
+class MCPConfig(BaseModel):
+    servers: List[MCPServerEntry] = Field(default_factory=list)
+
 class FridayKernelConfig(BaseModel):
     """
     Global configuration model schema for the central FRIDAY system kernel.
@@ -52,6 +65,7 @@ class FridayKernelConfig(BaseModel):
     desktop: DesktopConfig = Field(default_factory=DesktopConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     knowledge: KnowledgeConfig = Field(default_factory=KnowledgeConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
 
     @classmethod
     def load_defaults(cls) -> 'FridayKernelConfig':

@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+
+from app.tools.base import ToolParameter, ToolExample
+
 
 class BaseTool(ABC):
     """
@@ -16,6 +19,16 @@ class BaseTool(ABC):
     def description(self) -> str:
         """Description of the tool's purpose and parameter schema."""
         pass
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        """Declared parameters for this tool."""
+        return []
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        """Usage examples for this tool."""
+        return []
 
     @abstractmethod
     async def execute(self, **kwargs) -> Any:

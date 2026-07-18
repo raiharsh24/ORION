@@ -4,14 +4,14 @@ from unittest.mock import MagicMock, AsyncMock
 
 from app.intent.types import IntentType
 from app.tools.base import (
-    ToolDefinition, ToolCategory, PermissionLevel, ToolHealth, ToolDependency,
+    ToolDefinition, ToolCategory, PermissionLevel, ToolHealth, ToolDependency, ToolParameter,
 )
 from app.tools.registry import ToolRegistry
 from app.tool_selection.base import (
     ToolSelectionContext, SelectedTool, ToolSelectionResult,
 )
 from app.tool_selection.rules import SelectionRules
-from app.tool_selection.score import ToolScorer
+from app.tool_selection.score import ToolScorer, MAX_POSSIBLE_SCORE
 from app.tool_selection.selector import ToolSelectionEngine
 from app.tool_selection.events import (
     ToolSelectionStarted, ToolSelected, FallbackToolSelected, ToolSelectionCompleted,
@@ -27,7 +27,8 @@ def make_tool(tool_id: str = "tool_a", name: str = "Tool A",
               health_status: str = "healthy",
               streaming: bool = False, parallel: bool = False,
               tags: list = None, dependencies: list = None,
-              success_count: int = 0) -> ToolDefinition:
+              success_count: int = 0,
+              parameters: list = None) -> ToolDefinition:
     return ToolDefinition(
         id=tool_id,
         name=name,
@@ -41,6 +42,7 @@ def make_tool(tool_id: str = "tool_a", name: str = "Tool A",
         health=ToolHealth(status=health_status, success_count=success_count),
         tags=tags or [],
         dependencies=dependencies or [],
+        parameters=parameters or [],
     )
 
 
@@ -406,12 +408,15 @@ class TestDependencySelection:
         dep_tool = make_tool("dep", "Dependency", ToolCategory.FILESYSTEM,
                              health_status="healthy")
         main_tool = make_tool("main", "Main Tool", ToolCategory.FILESYSTEM,
-                              health_status="healthy",
+                              health_status="healthy", latency=1,
                               dependencies=[ToolDependency(tool_id="dep")])
         registry.register(dep_tool)
         registry.register(main_tool)
         engine = ToolSelectionEngine(registry, event_bus)
-        ctx = ToolSelectionContext(required_categories=["filesystem"])
+        ctx = ToolSelectionContext(
+            required_categories=["filesystem"],
+            pipeline_metadata={"max_tool_latency_ms": 200},
+        )
         result = await engine.select(ctx)
         assert "main" in result.tool_ids
         assert "dep" in result.tool_ids
@@ -538,3 +543,165 @@ class TestIntegration:
         assert result.estimated_total_cost > 0
         assert len(result.selection_scores) == len(result.selected_tools)
         assert len(result.selection_reasons) == len(result.selected_tools)
+
+
+# ── New: Keyword Overlap & Parameter Compatibility ─────────────────────────
+
+class TestKeywordAndParameter:
+    def test_keyword_overlap_exact(self):
+        tool = make_tool("test_tool", "File Reader", tags=["file", "read"],
+                         category=ToolCategory.FILESYSTEM)
+        score = SelectionRules.keyword_overlap("file read", tool)
+        assert score > 0.0
+
+    def test_keyword_overlap_no_match(self):
+        tool = make_tool("test_tool", "File Reader", tags=["file"],
+                         category=ToolCategory.FILESYSTEM)
+        score = SelectionRules.keyword_overlap("browser navigation", tool)
+        assert score == 0.0
+
+    def test_keyword_overlap_empty_query(self):
+        tool = make_tool("test_tool", "File Reader", tags=["file"])
+        assert SelectionRules.keyword_overlap("", tool) == 0.0
+
+    def test_parameter_compatibility_exact_match(self):
+        tool = make_tool("test_tool", "Test", tags=[],
+                         parameters=[ToolParameter(name="path", type="string")])
+        ctx = ToolSelectionContext(required_capabilities=["path"])
+        score = SelectionRules.parameter_compatibility(ctx, tool)
+        assert score > 0.5
+
+    def test_parameter_compatibility_no_caps(self):
+        tool = make_tool("test_tool", "Test", tags=[],
+                         parameters=[ToolParameter(name="path", type="string")])
+        ctx = ToolSelectionContext()
+        score = SelectionRules.parameter_compatibility(ctx, tool)
+        assert score == 0.5
+
+    def test_parameter_compatibility_no_params(self):
+        tool = make_tool("test_tool", "Test", tags=[])
+        ctx = ToolSelectionContext(required_capabilities=["path"])
+        score = SelectionRules.parameter_compatibility(ctx, tool)
+        assert score == 0.3
+
+
+# ── New: Confidence & Reasoning ────────────────────────────────────────────
+
+class TestConfidenceAndReasoning:
+    def test_confidence_clamped(self):
+        ctx = ToolSelectionContext()
+        scorer = ToolScorer(ctx)
+        assert scorer.compute_confidence(-10.0) == 0.0
+        assert scorer.compute_confidence(MAX_POSSIBLE_SCORE * 2) == 1.0
+        assert 0.0 <= scorer.compute_confidence(50.0) <= 1.0
+
+    def test_reasoning_mentions_factors(self):
+        ctx = ToolSelectionContext(intent=IntentType.DESKTOP)
+        scorer = ToolScorer(ctx)
+        tool = make_tool("fs", "File Tool", category=ToolCategory.FILESYSTEM,
+                         health_status="healthy")
+        reason = scorer.build_reasoning(tool)
+        assert "intent match" in reason or "category match" in reason
+
+    @pytest.mark.anyio
+    async def test_selected_tool_has_confidence(self, engine):
+        ctx = ToolSelectionContext(required_categories=["filesystem"])
+        result = await engine.select(ctx)
+        for st in result.selected_tools:
+            assert hasattr(st, 'confidence')
+            assert 0.0 <= st.confidence <= 1.0
+
+    @pytest.mark.anyio
+    async def test_selected_tool_has_reasoning(self, engine):
+        ctx = ToolSelectionContext(required_categories=["filesystem"])
+        result = await engine.select(ctx)
+        for st in result.selected_tools:
+            assert st.selection_reason, f"Tool {st.tool.id} missing reason"
+            assert len(st.selection_reason) > 0
+
+
+# ── New: Top-3 Ranking ─────────────────────────────────────────────────────
+
+class TestTopNRanking:
+    @pytest.mark.anyio
+    async def test_returns_at_most_three_primaries(self, registry, event_bus):
+        # All 6 healthy tools should produce at most 3 primary selections
+        engine = ToolSelectionEngine(registry, event_bus)
+        ctx = ToolSelectionContext()
+        result = await engine.select(ctx)
+        # Count non-fallback, non-dependency tools as "primaries"
+        primaries = [st for st in result.selected_tools
+                     if not st.is_fallback and "Dependency of" not in st.selection_reason]
+        assert len(primaries) <= 3
+
+    @pytest.mark.anyio
+    async def test_top_3_are_highest_scored(self, registry, event_bus):
+        engine = ToolSelectionEngine(registry, event_bus)
+        ctx = ToolSelectionContext(
+            required_categories=["filesystem"],
+            pipeline_metadata={"max_tool_latency_ms": 200},
+        )
+        result = await engine.select(ctx)
+        scores = result.selection_scores
+        if len(scores) >= 2:
+            sorted_scores = sorted(scores.values(), reverse=True)
+            # The two highest primary scores should be included
+            top = sorted_scores[:2]
+            non_fallback = [st for st in result.selected_tools
+                            if not st.is_fallback and "Dependency" not in st.selection_reason]
+            for st in non_fallback[:2]:
+                assert result.selection_scores.get(st.tool.id, 0) >= top[-1]
+
+    @pytest.mark.anyio
+    async def test_dependencies_can_exceed_top_3_count(self, registry, event_bus):
+        dep_tool = make_tool("dep_only", "Dep Only", ToolCategory.FILESYSTEM,
+                             health_status="healthy")
+        main_tool = make_tool("main_with_dep", "Main With Dep", ToolCategory.FILESYSTEM,
+                              health_status="healthy", latency=1,
+                              dependencies=[ToolDependency(tool_id="dep_only")])
+        registry.register(dep_tool)
+        registry.register(main_tool)
+        engine = ToolSelectionEngine(registry, event_bus)
+        ctx = ToolSelectionContext(
+            required_categories=["filesystem"],
+            pipeline_metadata={"max_tool_latency_ms": 200},
+        )
+        result = await engine.select(ctx)
+        assert "main_with_dep" in result.tool_ids
+        assert "dep_only" in result.tool_ids
+        # total selected can be > 3 because deps don't count against the limit
+        assert len(result.selected_tools) >= 2
+
+
+# ── New: Relevance Query ───────────────────────────────────────────────────
+
+class TestRelevanceQuery:
+    def test_query_tokenization(self):
+        tokens = SelectionRules._tokenize("Hello World! This_is_a_test_123")
+        assert "hello" in tokens
+        assert "world" in tokens
+        assert "this_is_a_test_123" in tokens
+
+    def test_query_boosts_keyword_score(self):
+        ctx = ToolSelectionContext(relevance_query="file read")
+        scorer = ToolScorer(ctx)
+        matching = make_tool("reader", "File Reader", ToolCategory.FILESYSTEM,
+                             health_status="healthy", tags=["file", "read"])
+        non_matching = make_tool("browser", "Browser Nav", ToolCategory.BROWSER,
+                                 health_status="healthy", tags=["web", "navigate"])
+        score_m = scorer._score_keyword_overlap(matching)
+        score_n = scorer._score_keyword_overlap(non_matching)
+        assert score_m > score_n
+
+
+# ── New: Enabled State Scoring ─────────────────────────────────────────────
+
+class TestEnabledScoring:
+    def test_enabled_tool_gets_boost(self):
+        ctx = ToolSelectionContext()
+        scorer = ToolScorer(ctx)
+        enabled = make_tool("e", "Enabled", health_status="healthy")
+        disabled = make_tool("d", "Disabled", health_status="healthy")
+        disabled.enabled = False
+        assert scorer._score_enabled(enabled) > 0
+        assert scorer._score_enabled(disabled) == 0.0

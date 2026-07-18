@@ -18,6 +18,7 @@ class ToolSelectionContext:
     required_capabilities: List[str] = field(default_factory=list)
     prefer_streaming: bool = False
     prefer_parallel: bool = False
+    relevance_query: str = ""
 
 
 @dataclass
@@ -26,6 +27,7 @@ class SelectedTool:
     score: float = 0.0
     selection_reason: str = ""
     is_fallback: bool = False
+    confidence: float = 0.0
 
 
 @dataclass

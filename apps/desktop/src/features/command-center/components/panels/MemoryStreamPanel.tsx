@@ -1,22 +1,18 @@
 import React, { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Waves, Database, History, Link2, FileSearch, Cpu } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
 import { useCommandCenterStore } from '../../store/useCommandCenterStore';
 import { useAiStateStore } from '../../sync/useAiStateStore';
 import { useBusEvent } from '../../hooks/useBusEvent';
-import { CC_TRANSITION } from '../../theme/motion';
 import type { MemoryEvent } from '../../data/mock';
 
-const KIND_META: Record<MemoryEvent['kind'], { icon: React.ReactNode; label: string; color: string; important?: boolean }> = {
-  store: { icon: <Database className="w-3 h-3" />, label: 'Stored', color: 'text-orange-glow', important: true },
-  recall: { icon: <History className="w-3 h-3" />, label: 'Recalled', color: 'text-cyan-glow' },
-  link: { icon: <Link2 className="w-3 h-3" />, label: 'Linked', color: 'text-blue-300' },
-  index: { icon: <FileSearch className="w-3 h-3" />, label: 'Indexed', color: 'text-emerald-300' },
+const KIND_META: Record<MemoryEvent['kind'], { icon: React.ReactNode; label: string; color: string; bg: string; border: string }> = {
+  store: { icon: <Database className="w-3 h-3" />, label: 'Stored', color: 'text-amber-500', bg: 'bg-amber-950/20', border: 'border-amber-500/20' },
+  recall: { icon: <History className="w-3 h-3" />, label: 'Recalled', color: 'text-cyan-glow', bg: 'bg-cyan-950/20', border: 'border-cyan-500/20' },
+  link: { icon: <Link2 className="w-3 h-3" />, label: 'Linked', color: 'text-blue-400', bg: 'bg-blue-950/20', border: 'border-blue-500/20' },
+  index: { icon: <FileSearch className="w-3 h-3" />, label: 'Indexed', color: 'text-emerald-400', bg: 'bg-emerald-950/20', border: 'border-emerald-500/20' },
 };
-
-const bucketOf = (time: string): 'Live' | 'Recent' | 'Earlier' =>
-  time === 'now' ? 'Live' : time.endsWith('s') ? 'Recent' : 'Earlier';
 
 const FILTERS: Array<{ key: MemoryEvent['kind'] | 'all'; label: string }> = [
   { key: 'all', label: 'All' },
@@ -26,26 +22,59 @@ const FILTERS: Array<{ key: MemoryEvent['kind'] | 'all'; label: string }> = [
   { key: 'index', label: 'Index' },
 ];
 
-const MemoryRow: React.FC<{ event: MemoryEvent; highlight?: boolean }> = ({ event, highlight }) => {
+const MemoryRow: React.FC<{ event: MemoryEvent; highlight?: boolean; isLast?: boolean }> = ({ event, highlight, isLast }) => {
   const meta = KIND_META[event.kind];
+  
+  const formatTime = (time: string) => {
+    if (time === 'now') return 'now';
+    if (time.endsWith('s')) return `${time} ago`;
+    return time;
+  };
+
+  const isReflection = event.label.toLowerCase().includes('reflection') || event.kind === 'store';
+  const isRecall = event.kind === 'recall' || highlight;
+
+  const rowStyles = isReflection
+    ? 'border-amber-550/25 bg-amber-500/5 shadow-[0_0_8px_rgba(245,158,11,0.12)]'
+    : isRecall
+    ? 'cc-recall-glow border-cyan-border/45 bg-cyan-glow/5 shadow-[0_0_8px_rgba(0,242,254,0.12)]'
+    : 'border-transparent hover:border-zinc-800/80 hover:bg-white/[0.02]';
+
+  const iconColor = isReflection ? 'text-amber-400' : meta.color;
+  const iconBg = isReflection ? 'bg-amber-950/20' : meta.bg;
+  const iconBorder = isReflection ? 'border-amber-500/20' : meta.border;
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={CC_TRANSITION}
-      className={`group flex items-start gap-2 rounded-lg border px-2 py-1.5 transition-colors ${
-        meta.important
-          ? 'border-orange-border/40 bg-orange-glow/5'
-          : 'border-transparent hover:border-cyan-border/20 hover:bg-white/[0.03]'
-      } ${highlight ? 'cc-recall-glow' : ''}`}
+      layout
+      initial={{ opacity: 0, y: -15, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.96 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 26 }}
+      className={`group relative flex items-start gap-3 pl-6 pr-2 py-2 border rounded-xl transition-all duration-300 ${rowStyles}`}
     >
-      <span className={`mt-0.5 ${meta.color}`}>{meta.icon}</span>
+      {/* Vertical timeline track line */}
+      {!isLast && (
+        <span className="absolute left-[13px] top-6 bottom-0 w-px border-l border-dashed border-zinc-800 pointer-events-none" />
+      )}
+      
+      {/* Icon with glowing status wrapper */}
+      <div 
+        className={`absolute left-[5px] top-2.5 w-4 h-4 rounded-full flex items-center justify-center border ${iconBg} ${iconBorder} text-xs shrink-0`}
+      >
+        <span className={iconColor}>{meta.icon}</span>
+      </div>
+
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold text-zinc-200 truncate">{event.label}</span>
-          <span className="text-[7.5px] font-mono text-zinc-600 shrink-0">{event.time}</span>
+        <div className="flex items-center justify-between gap-3">
+          <span className={`text-[10px] font-bold truncate group-hover:text-cyan-glow transition-colors duration-200 ${isReflection ? 'text-amber-300' : 'text-zinc-100'}`}>
+            {event.label}
+          </span>
+          <span className="text-[8px] font-mono text-zinc-500 tabular-nums shrink-0 mt-0.5">
+            {formatTime(event.time)}
+          </span>
         </div>
-        <div className="text-[8px] font-mono text-zinc-500 truncate">{event.detail}</div>
+        <div className="text-[8.5px] font-mono text-zinc-500 truncate mt-0.5">{event.detail}</div>
       </div>
     </motion.div>
   );
@@ -57,7 +86,7 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
   const [filter, setFilter] = useState<MemoryEvent['kind'] | 'all'>('all');
   const [flash, setFlash] = useState(false);
 
-  // React to the event bus: flash when new memory arrives, even from other modules.
+  // React to updates on event bus
   useBusEvent('MEMORY_UPDATED', () => {
     setFlash(true);
     window.setTimeout(() => setFlash(false), 900);
@@ -65,12 +94,8 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
 
   const retrieving = aiState === 'memory' || aiState === 'thinking';
 
-  const grouped = useMemo(() => {
-    const filtered = filter === 'all' ? stream : stream.filter((e) => e.kind === filter);
-    const order: Array<'Live' | 'Recent' | 'Earlier'> = ['Live', 'Recent', 'Earlier'];
-    const map: Record<'Live' | 'Recent' | 'Earlier', MemoryEvent[]> = { Live: [], Recent: [], Earlier: [] };
-    filtered.forEach((e) => map[bucketOf(e.time)].push(e));
-    return order.map((b) => ({ bucket: b, items: map[b] })).filter((g) => g.items.length > 0);
+  const filteredItems = useMemo(() => {
+    return filter === 'all' ? stream : stream.filter((e) => e.kind === filter);
   }, [stream, filter]);
 
   return (
@@ -80,17 +105,18 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
       live
       liveColor="green"
       className={className}
-      bodyClassName="flex flex-col gap-2 h-[calc(100%-2.75rem)]"
+      bodyClassName="flex flex-col gap-2.5 h-[calc(100%-2.75rem)]"
     >
+      {/* Filters bar */}
       <div className="flex flex-wrap gap-1">
         {FILTERS.map((f) => (
           <button
             key={f.key}
             onClick={() => setFilter(f.key)}
-            className={`px-1.5 py-0.5 rounded-full border text-[7.5px] font-mono uppercase tracking-[0.12em] transition-colors ${
+            className={`px-2 py-0.5 rounded-full border text-[7.5px] font-mono uppercase tracking-[0.12em] transition-colors cursor-pointer ${
               filter === f.key
-                ? 'border-cyan-border/50 bg-cyan-glow/10 text-cyan-glow'
-                : 'border-zinc-700/50 text-zinc-500 hover:text-zinc-300'
+                ? 'border-cyan-border/50 bg-cyan-glow/10 text-cyan-glow font-bold'
+                : 'border-zinc-800/80 text-zinc-500 hover:text-zinc-300'
             }`}
           >
             {f.label}
@@ -98,25 +124,26 @@ export const MemoryStreamPanel: React.FC<{ className?: string }> = ({ className 
         ))}
       </div>
 
-      <div className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-2 ${flash ? 'cc-flash-ring' : ''}`}>
-        {grouped.length === 0 && (
+      {/* Stream lists with timeline connections */}
+      <div className={`flex-1 min-h-0 overflow-y-auto pr-1 space-y-1 ${flash ? 'cc-flash-ring' : ''}`}>
+        {filteredItems.length === 0 ? (
           <div className="h-full flex items-center justify-center text-[9px] font-mono text-zinc-600">No events</div>
-        )}
-        {grouped.map((g) => (
-          <div key={g.bucket} className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[7px] font-mono uppercase tracking-[0.2em] text-zinc-600">{g.bucket}</span>
-              <div className="flex-1 h-px bg-zinc-800/60" />
-            </div>
-            {g.items.map((e) => (
-              <MemoryRow key={e.id} event={e} highlight={retrieving && e.kind === 'recall'} />
+        ) : (
+          <AnimatePresence initial={false}>
+            {filteredItems.map((e, idx) => (
+              <MemoryRow 
+                key={e.id} 
+                event={e} 
+                highlight={retrieving && e.kind === 'recall'} 
+                isLast={idx === filteredItems.length - 1}
+              />
             ))}
-          </div>
-        ))}
+          </AnimatePresence>
+        )}
       </div>
 
       {retrieving && (
-        <div className="flex items-center gap-1.5 text-[7.5px] font-mono uppercase tracking-[0.2em] text-cyan-glow/70 cc-blink">
+        <div className="flex items-center gap-1.5 text-[8px] font-mono uppercase tracking-[0.2em] text-cyan-glow/85 cc-blink mt-1 shrink-0">
           <Cpu className="w-3 h-3" /> Retrieving memories…
         </div>
       )}

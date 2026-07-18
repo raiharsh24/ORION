@@ -1,6 +1,8 @@
+from typing import List
 import subprocess
 import shutil
 import sys
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 
 class OpenAppTool(BaseTool):
@@ -14,7 +16,21 @@ class OpenAppTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Open a desktop application or file. Args: app_name (str), target (str, optional)"
+        return "Open a desktop application, file, or URL with the default handler."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="app_name", type="string", description="Application name or path to launch", required=True),
+            ToolParameter(name="target", type="string", description="Optional file or URL to open with the application", required=False),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="Open Firefox", args={"app_name": "firefox"}, description="Launch the Firefox browser"),
+            ToolExample(prompt="Open README", args={"app_name": "default", "target": "README.md"}, description="Open README.md with the default text editor"),
+        ]
 
     def requires_confirmation(self, **kwargs) -> bool:
         return False

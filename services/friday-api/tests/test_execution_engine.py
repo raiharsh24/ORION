@@ -22,7 +22,7 @@ class TestExecutionContext:
         assert ctx.prompt == "hello"
         assert ctx.session_id == "s1"
         assert ctx.execution_id
-        assert len(ctx.stage_records) == 8  # 8 stages
+        assert len(ctx.stage_records) == 10  # 10 stages (including goal_planning, reflection)
         for record in ctx.stage_records.values():
             assert record.status == StageStatus.PENDING
 

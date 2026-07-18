@@ -1,3 +1,5 @@
+from typing import List
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 from app.friday.retrieval import RetrievalEngine
 
@@ -14,7 +16,20 @@ class KnowledgeSearchTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Search the project knowledge base and codebase for semantic information. Args: query (str)"
+        return "Search the project knowledge base and codebase for semantic information."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="query", type="string", description="Semantic search query", required=True),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="Search for authentication code", args={"query": "authentication middleware"}, description="Search the knowledge base for authentication-related code"),
+            ToolExample(prompt="Find database models", args={"query": "database models"}, description="Search for database model definitions"),
+        ]
 
     def requires_confirmation(self, **kwargs) -> bool:
         return False

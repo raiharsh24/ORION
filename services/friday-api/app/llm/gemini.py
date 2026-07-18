@@ -27,34 +27,43 @@ class GeminiAdapter(BaseLLM):
         self._mock_mode = not api_key or api_key.strip() == "mock" or api_key.strip() == "placeholder" or "your_" in api_key
         self._valid_key = not self._mock_mode
         if self._valid_key:
-            try:
-                genai.configure(api_key=api_key)
-                self._initialized = True
-                logger.info(f"Google Gemini SDK configured successfully with model '{model_name}'.")
-            except Exception as e:
-                logger.error(f"Failed to configure Gemini SDK: {str(e)}")
+            logger.info(f"GeminiAdapter created for model '{model_name}' (configure will be lazy).")
         else:
             logger.warning("GeminiAdapter initialized in mock mode.")
 
-    def _get_model(self) -> genai.GenerativeModel:
+    async def _ensure_initialized(self) -> None:
+        """Lazy async initialization of the Gemini SDK to avoid blocking the event loop during boot."""
+        if self._initialized:
+            return
+
         if not self.api_key or not self.api_key.strip():
             from app.core.config import settings as core_settings
             self.api_key = core_settings.GEMINI_API_KEY
 
         if not self.api_key or not self.api_key.strip():
             raise ValueError("GEMINI_API_KEY is missing or empty. Please verify settings.")
-        
-        if not self._initialized:
-            try:
-                genai.configure(api_key=self.api_key)
-                self._initialized = True
-            except Exception as e:
-                raise RuntimeError(f"Failed to configure Gemini SDK dynamically: {str(e)}")
 
-        config = genai.types.GenerationConfig(
-            temperature=self.temperature,
-            max_output_tokens=self.max_tokens,
-            top_p=self.top_p
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, lambda: genai.configure(api_key=self.api_key))
+            self._initialized = True
+            logger.info("Gemini SDK configured lazily.")
+        except Exception as e:
+            raise ValueError(f"Failed to configure Gemini SDK: {str(e)}")
+
+    def _get_model(self) -> genai.GenerativeModel:
+        if not self._initialized:
+            raise RuntimeError(
+                "GeminiAdapter not initialized. Call await adapter._ensure_initialized() first."
+            )
+
+        return genai.GenerativeModel(
+            model_name=self.model_name,
+            generation_config={
+                "temperature": self.temperature,
+                "max_output_tokens": self.max_tokens,
+                "top_p": self.top_p,
+            }
         )
         return genai.GenerativeModel(self.model_name, generation_config=config)
 
@@ -93,8 +102,7 @@ class GeminiAdapter(BaseLLM):
 
         if not self._mock_mode and not self._initialized:
             try:
-                genai.configure(api_key=self.api_key)
-                self._initialized = True
+                await self._ensure_initialized()
             except Exception as e:
                 logger.error(f"Gemini re-initialization failed in generate(): {e}")
 
@@ -121,8 +129,7 @@ class GeminiAdapter(BaseLLM):
 
         if not self._mock_mode and not self._initialized:
             try:
-                genai.configure(api_key=self.api_key)
-                self._initialized = True
+                await self._ensure_initialized()
             except Exception as e:
                 logger.error(f"Gemini re-initialization failed in generate_stream(): {e}")
 

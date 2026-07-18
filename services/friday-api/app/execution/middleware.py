@@ -37,6 +37,12 @@ class ExecutionMiddleware:
     async def after_execution(self, ctx: ExecutionContext) -> None:
         pass
 
+    async def before_reflection(self, ctx: ExecutionContext) -> None:
+        pass
+
+    async def after_reflection(self, ctx: ExecutionContext) -> None:
+        pass
+
     async def before_enrichment(self, ctx: ExecutionContext) -> None:
         pass
 
@@ -125,6 +131,10 @@ class MetricsMiddleware(ExecutionMiddleware):
         self._metrics.record_stage(Stage.EXECUTION.value, r.duration_ms,
                                      error=r.error)
 
+    async def after_reflection(self, ctx: ExecutionContext) -> None:
+        r = ctx.stage_records[Stage.REFLECTION.value]
+        self._metrics.record_stage(Stage.REFLECTION.value, r.duration_ms)
+
     async def after_enrichment(self, ctx: ExecutionContext) -> None:
         r = ctx.stage_records[Stage.ENRICHMENT.value]
         self._metrics.record_stage(Stage.ENRICHMENT.value, r.duration_ms)
@@ -183,6 +193,12 @@ class MiddlewareChain:
 
     async def after_execution(self, ctx: ExecutionContext) -> None:
         await self._apply("after_execution", ctx)
+
+    async def before_reflection(self, ctx: ExecutionContext) -> None:
+        await self._apply("before_reflection", ctx)
+
+    async def after_reflection(self, ctx: ExecutionContext) -> None:
+        await self._apply("after_reflection", ctx)
 
     async def before_enrichment(self, ctx: ExecutionContext) -> None:
         await self._apply("before_enrichment", ctx)

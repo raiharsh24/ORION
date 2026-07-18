@@ -1,7 +1,9 @@
+from typing import List
 import asyncio
 import os
 import shlex
 from pathlib import Path
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 
 class TerminalTool(BaseTool):
@@ -36,7 +38,21 @@ class TerminalTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Execute commands in a shell terminal. Args: cmd (str)"
+        return "Execute commands in a shell terminal with sandboxed environment."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="cmd", type="string", description="Shell command to execute", required=True),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="List files in current directory", args={"cmd": "ls -la"}, description="List directory contents"),
+            ToolExample(prompt="Check disk usage", args={"cmd": "df -h"}, description="Check filesystem disk space usage"),
+            ToolExample(prompt="Search for Python files", args={"cmd": "find . -name '*.py'"}, description="Find all Python files recursively"),
+        ]
 
     def _parse_and_validate(self, command: str) -> list[str]:
         if not command:

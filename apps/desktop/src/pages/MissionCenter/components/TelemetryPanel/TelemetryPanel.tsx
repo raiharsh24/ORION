@@ -1,14 +1,17 @@
 import React from 'react';
 import { useTelemetry } from '../../hooks';
+import type { ExecutionStatePayload } from '../../../../services/realtime/eventTypes';
 
 // 1. TypeScript interface for Props
 export interface TelemetryPanelProps {
+  execState?: ExecutionStatePayload;
   isLoading?: boolean;
   hasError?: boolean;
 }
 
 // 2. Export component
 export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
+  execState,
   isLoading = false,
   hasError = false,
 }) => {
@@ -68,9 +71,17 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         <span>Events: <span className="text-zinc-300 font-bold">{telemetry.eventsCount}</span></span>
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-1">
-        <span>Tool: <span className="text-purple-400 font-bold">{telemetry.currentTool || 'None'}</span></span>
+        <span>Tool: <span className="text-purple-400 font-bold">{telemetry.currentTool || execState?.selected_tool || 'None'}</span></span>
         <span>Workflow: <span className="text-zinc-400 font-bold">{telemetry.workflow || 'None'}</span></span>
         <span>ID: <span className="text-zinc-400">{telemetry.missionId}</span></span>
+        <span>Stage: <span className={`font-bold ${execState?.stage_status === 'running' ? 'text-cyan-glow' : 'text-zinc-400'}`}>
+          {execState?.execution_stage || 'idle'}
+        </span></span>
+        {execState && execState.confidence > 0 && (
+          <span>Confidence: <span className={`font-bold ${
+            execState.confidence > 0.7 ? 'text-emerald-400' : execState.confidence > 0.4 ? 'text-orange-400' : 'text-zinc-400'
+          }`}>{(execState.confidence * 100).toFixed(0)}%</span></span>
+        )}
       </div>
     </div>
   );

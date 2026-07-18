@@ -2,6 +2,8 @@ import os
 import sys
 import shutil
 from pathlib import Path
+from typing import List
+from app.tools.base import ToolParameter, ToolExample
 from app.tools.base_tool import BaseTool
 
 class FilesystemTool(BaseTool):
@@ -22,7 +24,23 @@ class FilesystemTool(BaseTool):
 
     @property
     def description(self) -> str:
-        return "Perform filesystem operations: read, write, delete, and list. Args: op (read/write/delete/list), path (str), content (str, optional)"
+        return "Perform filesystem operations: read, write, delete, and list."
+
+    @property
+    def parameters(self) -> List[ToolParameter]:
+        return [
+            ToolParameter(name="op", type="string", description="Operation: read, write, delete, or list", required=True, enum_values=["read", "write", "delete", "list"]),
+            ToolParameter(name="path", type="string", description="Target file or directory path relative to workspace", required=True),
+            ToolParameter(name="content", type="string", description="Content to write (required for write operation)", required=False),
+        ]
+
+    @property
+    def examples(self) -> List[ToolExample]:
+        return [
+            ToolExample(prompt="Read src/main.py", args={"op": "read", "path": "src/main.py"}, description="Read a file from the workspace"),
+            ToolExample(prompt="List files in src/", args={"op": "list", "path": "src/"}, description="List directory contents"),
+            ToolExample(prompt="Write hello world", args={"op": "write", "path": "hello.txt", "content": "Hello World"}, description="Write content to a file"),
+        ]
 
     def _safe_resolve(self, target: str) -> Path:
         resolved = (self.workspace_root / target).resolve()

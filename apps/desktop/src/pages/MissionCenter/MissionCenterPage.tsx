@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useMissionStore, useTelemetryStore, useKernelStore, useHealthStore, useWorkflowStore } from './store';
+import { ApprovalDialog } from '../../components/ui/ApprovalDialog';
+import { ExecutionTimeline } from '../../components/ui/ExecutionTimeline';
+import type { TimelineStep } from '../../components/ui/ExecutionTimeline';
+import type { Mission } from './types';
 import { useRealtime } from '../../services/realtime/hooks/useRealtime';
 import { useMissionEvents } from '../../services/realtime/hooks/useMissionEvents';
 import { useTelemetry } from '../../services/realtime/hooks/useTelemetry';
 import { useKernelEvents } from '../../services/realtime/hooks/useKernelEvents';
+import { useExecutionState } from '../../services/realtime/hooks/useExecutionState';
 import type { ConnectionState } from '../../services/realtime/streamManager';
 
 // Core Subcomponents Imports
@@ -21,6 +26,7 @@ import { ServiceStatusGrid } from './components/ServiceStatusGrid/ServiceStatusG
 import { TelemetryPanel } from './components/TelemetryPanel/TelemetryPanel';
 import { WorkflowGraph } from './components/WorkflowGraph/WorkflowGraph';
 import { WorkflowPanel } from './components/WorkflowPanel/WorkflowPanel';
+import { MissionInsights } from './components/MissionInsights/MissionInsights';
 
 // 1. TypeScript interface for Props
 export interface MissionCenterPageProps {
@@ -28,17 +34,62 @@ export interface MissionCenterPageProps {
   hasError?: boolean;
 }
 
+/**
+ * Derive the FRIDAY cognitive execution pipeline from live execution state.
+ * Stages: Planning → Workspace Analysis → Tool Selection → MCP Execution → Result.
+ */
+function buildExecutionPipeline(execState: ReturnType<typeof useExecutionState>, mission: Mission | null): TimelineStep[] {
+  const stage = (
+    id: string,
+    name: string,
+    status: TimelineStep['status'],
+    extra?: Partial<TimelineStep>,
+  ): TimelineStep => ({ id, name, status, ...extra });
+
+  const s = execState.execution_stage;
+  const idle = s === 'idle' || !s;
+  const active = execState.stage_status === 'running';
+  const isGoalPlanning = s === 'goal_planning';
+  const isToolSelect = s === 'tool_selection' || s === 'execution';
+  const isExecuting = s === 'execution';
+  const isLLM = s === 'llm' || s === 'response';
+  const done = mission?.status === 'COMPLETED';
+  const failed = mission?.status === 'FAILED';
+
+  const taskStatus = (match: boolean, running: boolean): TimelineStep['status'] => {
+    if (done) return 'completed';
+    if (failed) return 'failed';
+    if (match && running) return 'running';
+    if (match) return 'completed';
+    return 'pending';
+  };
+
+  return [
+    stage('planning', 'Planning', idle ? 'pending' : done ? 'completed' : failed ? 'failed' : 'completed'),
+    stage('goal', 'Goal Planning', taskStatus(isGoalPlanning || s === 'planning', active)),
+    stage('tool', 'Tool Selection', taskStatus(isToolSelect, active),
+      execState.selected_tool ? { error: undefined } : undefined),
+    stage(
+      'mcp',
+      execState.selected_tool ? `MCP Execution · ${execState.selected_tool}` : 'MCP Execution',
+      taskStatus(isExecuting, active),
+      failed ? { error: mission?.error } : undefined,
+    ),
+    stage('result', 'Result', done ? 'completed' : failed ? 'failed' : taskStatus(isLLM, active)),
+  ];
+}
+
 // 2. Export component
-export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
-  isLoading = false,
-  hasError = false,
-}) => {
-  const { missions, activeMissionId, isOffline, loadMissions, confirmMissionAction } = useMissionStore();
+export const MissionCenterPage: React.FC<MissionCenterPageProps> = (_props) => {
+  const { missions, activeMissionId, isOffline, loadMissions, confirmMissionAction, isLoading: missionsLoading, error: missionsError } = useMissionStore();
   const loadKernel = useKernelStore((s) => s.loadKernel);
   const loadTelemetry = useTelemetryStore((s) => s.loadTelemetry);
   const loadHealth = useHealthStore((s) => s.loadHealth);
   const telemetry = useTelemetryStore();
   const { workflows, activeWorkflowId, loadWorkflows } = useWorkflowStore();
+
+  const isLoading = _props.isLoading ?? missionsLoading;
+  const hasError = _props.hasError ?? !!missionsError;
 
   const [activeTab, setActiveTab] = useState<'details' | 'stats' | 'workflow'>('details');
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -50,6 +101,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
   useMissionEvents();
   useTelemetry();
   useKernelEvents();
+  const execState = useExecutionState();
 
   // Load/reload state on mount or upon reconnection
   const [prevConnectionState, setPrevConnectionState] = useState<ConnectionState>('DISCONNECTED');
@@ -65,27 +117,45 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
     setPrevConnectionState(realtime.connectionState);
   }, [realtime.connectionState, prevConnectionState, loadMissions, loadKernel, loadTelemetry, loadHealth, loadWorkflows]);
 
-  // Baseline load on mount
+  // Baseline load on mount (parallelized)
   useEffect(() => {
-    loadMissions();
-    loadKernel();
-    loadTelemetry();
-    loadHealth();
-    loadWorkflows();
+    Promise.allSettled([
+      loadMissions(),
+      loadKernel(),
+      loadTelemetry(),
+      loadHealth(),
+      loadWorkflows(),
+    ]);
   }, [loadMissions, loadKernel, loadTelemetry, loadHealth, loadWorkflows]);
 
   // Fallback Polling interval triggered ONLY if transport falls back to POLLING
   useEffect(() => {
-    if (realtime.transportType === 'POLLING') {
-      const interval = setInterval(() => {
+    if (realtime.transportType !== 'POLLING') return;
+
+    const poll = () => {
+      if (document.hidden) return;
+      loadMissions();
+      loadKernel();
+      loadTelemetry();
+      loadHealth();
+    };
+
+    const interval = setInterval(poll, 5000);
+
+    const onVisibility = () => {
+      if (!document.hidden) {
         loadMissions();
         loadKernel();
         loadTelemetry();
         loadHealth();
-      }, 1000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
-      return () => clearInterval(interval);
-    }
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [realtime.transportType, loadMissions, loadKernel, loadTelemetry, loadHealth]);
 
   // 3. Accessibility comments
@@ -125,6 +195,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
 
   const activeMission = missions.find((m) => m.id === activeMissionId) || null;
   const activeWorkflow = workflows.find(w => w.id === activeWorkflowId) || null;
+  const executionPipeline = buildExecutionPipeline(execState, activeMission);
 
   return (
     <motion.main 
@@ -165,6 +236,24 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
                 currentStep={activeMission?.currentStep} 
                 status={activeMission?.status}
               />
+
+              {/* Live cognitive execution pipeline */}
+              <div className="border border-matte-border/20 rounded-xl bg-matte-card/30 backdrop-blur-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                    Execution Pipeline
+                  </h4>
+                  <span className={`text-[9px] font-mono uppercase tracking-widest font-bold ${
+                    execState.stage_status === 'running' ? 'text-cyan-glow animate-pulse'
+                    : execState.execution_stage === 'idle' ? 'text-zinc-600'
+                    : execState.execution_stage === 'response' ? 'text-emerald-400'
+                    : 'text-cyan-glow'
+                  }`}>
+                    {activeMission?.status || execState.execution_stage || 'IDLE'}
+                  </span>
+                </div>
+                <ExecutionTimeline steps={executionPipeline} />
+              </div>
               
               {/* Tabs Panel Selection */}
               <div className="border border-matte-border/20 rounded-xl overflow-hidden bg-matte-card/30">
@@ -199,7 +288,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
                 {/* Render Tabs content */}
                 <div>
                   {activeTab === 'details' ? (
-                    <MissionDetails mission={activeMission} />
+                    <MissionDetails mission={activeMission} execState={execState} />
                   ) : activeTab === 'stats' ? (
                     <MissionStatistics missionId={activeMissionId} />
                   ) : (
@@ -218,6 +307,8 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
                 progress={activeMission?.progress} 
                 status={activeMission?.status} 
                 durationMs={activeMission?.durationMs}
+                activeTask={execState.active_task}
+                plannerTasks={execState.planner_tasks}
               />
             </div>
           </div>
@@ -229,7 +320,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
         </div>
 
         {/* Execution telemetry summary footer */}
-        <TelemetryPanel />
+        <TelemetryPanel execState={execState} />
       </div>
 
       {/* Col 3: Side control panel checks (Kernel & heartbeats grid) */}
@@ -241,6 +332,7 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
         <div className="space-y-4.5">
           <KernelHealthPanel />
           <ServiceStatusGrid />
+          <MissionInsights />
         </div>
 
         {/* Collapsible Workflow Engine Widget */}
@@ -296,8 +388,8 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
               <div className="p-3.5 space-y-2 text-[9px] font-mono uppercase tracking-wider text-zinc-400 border-t border-matte-border/10 bg-zinc-950/20">
                 <div className="flex justify-between items-center">
                   <span>Active Task:</span>
-                  <span className="text-zinc-300 truncate max-w-[120px] font-bold" title={telemetry.current_desktop_task}>
-                    {telemetry.current_desktop_task || 'None'}
+                  <span className="text-zinc-300 truncate max-w-[120px] font-bold" title={execState.active_task || telemetry.current_desktop_task}>
+                    {execState.active_task || telemetry.current_desktop_task || 'None'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -332,48 +424,15 @@ export const MissionCenterPage: React.FC<MissionCenterPageProps> = ({
         onClose={() => setIsHistoryOpen(false)} 
       />
 
-      {/* Sensitive Action Approval Dialog */}
-      {activeMission?.metadata?.pending_confirmation && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-zinc-900 border border-amber-500/30 rounded-xl p-6 max-w-md w-full space-y-4 shadow-[0_0_50px_rgba(245,158,11,0.15)] text-left"
-          >
-            <div className="flex items-center gap-3">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              <h3 className="text-xs font-mono uppercase tracking-widest text-amber-500 font-bold">
-                Sensitive Action Confirmation
-              </h3>
-            </div>
-            
-            <p className="text-xs text-zinc-300 font-mono leading-relaxed bg-zinc-950/40 p-3.5 rounded-lg border border-matte-border/10">
-              {activeMission.metadata.pending_confirmation.prompt}
-            </p>
-
-            {activeMission.metadata.pending_confirmation.args && (
-              <pre className="p-3 bg-black/35 rounded-lg text-[9px] text-zinc-400 overflow-x-auto font-mono max-h-24 scrollbar-thin leading-normal">
-                {JSON.stringify(activeMission.metadata.pending_confirmation.args, null, 2)}
-              </pre>
-            )}
-
-            <div className="flex gap-3 justify-end text-[10px] font-mono uppercase tracking-wider pt-2">
-              <button
-                onClick={() => confirmMissionAction(activeMission.id, false)}
-                className="px-4 py-2 rounded-lg bg-zinc-950 border border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-colors cursor-pointer"
-              >
-                Deny
-              </button>
-              <button
-                onClick={() => confirmMissionAction(activeMission.id, true)}
-                className="px-4 py-2 rounded-lg bg-amber-500 text-zinc-950 font-bold hover:bg-amber-400 hover:shadow-[0_0_15px_rgba(245,158,11,0.3)] transition-all cursor-pointer"
-              >
-                Approve
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      {/* Unified Approval Dialog */}
+      <ApprovalDialog
+        open={!!activeMission?.metadata?.pending_confirmation}
+        title="Sensitive Action Confirmation"
+        prompt={activeMission?.metadata?.pending_confirmation?.prompt || ''}
+        args={activeMission?.metadata?.pending_confirmation?.args}
+        onApprove={() => activeMission && confirmMissionAction(activeMission.id, true)}
+        onReject={() => activeMission && confirmMissionAction(activeMission.id, false)}
+      />
     </motion.main>
   );
 };

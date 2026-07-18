@@ -81,7 +81,7 @@ interface SystemState {
   lastToolUsed: string | null;
 
   // Confirmation loop state
-  pendingConfirmation: { prompt: string; token: string; toolName: string } | null;
+  pendingConfirmation: { prompt: string; token: string; toolName: string; args?: Record<string, unknown> } | null;
 
   // Alpha 1.2 Knowledge states
   workspaceProjects: ProjectDetail[];
@@ -273,7 +273,8 @@ export const useSystemStore = create<SystemState>((set, get) => ({
             pendingConfirmation: {
               prompt: prompt,
               token: result.confirmation_token,
-              toolName: result.tool_used
+              toolName: result.tool_used,
+              args: result.tool_args ?? result.args ?? undefined
             }
           });
 

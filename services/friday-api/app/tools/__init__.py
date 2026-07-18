@@ -13,6 +13,10 @@ from app.tools.vision_tools import (
     ScreenshotCaptureTool, ImageAnalysisTool, OCRTool,
     ScreenContextTool, ClipboardImageTool
 )
+from app.tools.auto_register import (
+    tool, register_tool_class, register_all_tool_classes,
+    build_definition_from_class,
+)
 
 __all__ = [
     "BaseTool",
@@ -33,4 +37,8 @@ __all__ = [
     "OCRTool",
     "ScreenContextTool",
     "ClipboardImageTool",
+    "tool",
+    "register_tool_class",
+    "register_all_tool_classes",
+    "build_definition_from_class",
 ]

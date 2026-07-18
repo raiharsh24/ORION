@@ -1,0 +1,17 @@
+# cd apps/desktop
+npm run dev
+
+
+/ORION/services/friday-api$ uv run uvicorn app.main:app --reload --port 8000
+cd services/friday-api
+uv run uvicorn app.main:app --reload --port 8000
+
+
+cd services/gateway
+npm install
+npm run dev
+
+
+
+
+

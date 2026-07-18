@@ -10,13 +10,13 @@ describe('GraphAnalytics Engine Verification', () => {
     // Cycle 2: D -> E -> F -> D
     // Orphan: G
     const nodes: GraphNode[] = [
-      { id: 'A', title: 'Node A', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'B', title: 'Node B', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'C', title: 'Node C', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'D', title: 'Node D', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'E', title: 'Node E', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'F', title: 'Node F', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' },
-      { id: 'G', title: 'Node G', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', createdAt: '', updatedAt: '' }
+      { id: 'A', title: 'Node A', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'B', title: 'Node B', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'C', title: 'Node C', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'D', title: 'Node D', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'E', title: 'Node E', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'F', title: 'Node F', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' },
+      { id: 'G', title: 'Node G', description: '', type: 'code', category: 'Dev', tags: [], importance: 0.5, status: 'HEALTHY', metadata: {}, createdAt: '', updatedAt: '' }
     ];
 
     const links: GraphLink[] = [

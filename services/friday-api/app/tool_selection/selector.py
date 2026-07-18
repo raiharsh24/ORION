@@ -54,44 +54,99 @@ class ToolSelectionEngine:
         scored = [(t, scorer.score(t)) for t in candidates]
         scored.sort(key=lambda x: x[1], reverse=True)
 
+        TOP_N = 3
+        tool_by_id = {t.id: t for t, _ in scored}
+
+        # Build set of tool IDs to process: top N primaries + their required deps
+        process_ids: Set[str] = set()
+        for tool, _ in scored[:TOP_N]:
+            process_ids.add(tool.id)
+            for dep in tool.dependencies:
+                if not dep.optional and dep.tool_id in tool_by_id:
+                    process_ids.add(dep.tool_id)
+
+        # Build dependency-safe processing order via DFS
+        process_order: List[ToolDefinition] = []
+        visited: Set[str] = set()
+
+        def _add_with_deps(tid: str) -> None:
+            if tid in visited:
+                return
+            visited.add(tid)
+            t = tool_by_id.get(tid)
+            if t is None:
+                return
+            for dep in t.dependencies:
+                if not dep.optional and dep.tool_id in process_ids:
+                    _add_with_deps(dep.tool_id)
+            process_order.append(t)
+
+        for tid in process_ids:
+            _add_with_deps(tid)
+
         seen_ids: Set[str] = set()
-        for tool, score in scored:
+        for tool in process_order:
             if tool.id in seen_ids:
                 continue
-            primary = self._try_select(tool, context, seen_ids)
-            if primary is not None:
-                result.selected_tools.append(primary)
-                result.selection_scores[tool.id] = score
-                result.selection_reasons[tool.id] = primary.selection_reason
-                seen_ids.add(tool.id)
-                self._publish(ToolSelected(
-                    tool_id=tool.id, name=tool.name,
-                    score=score, reason=primary.selection_reason,
-                ))
+            score = scorer.score(tool)
+            confidence = scorer.compute_confidence(score)
+            reasoning = scorer.build_reasoning(tool)
 
-                for dep in tool.dependencies:
-                    if dep.tool_id not in seen_ids:
-                        dep_tool = self._tool_registry.get(dep.tool_id)
-                        if dep_tool is not None:
+            # Determine if this is a primary selection or a dependency
+            is_primary = tool.id in {t.id for t, _ in scored[:TOP_N]}
+
+            if is_primary:
+                primary = self._try_select(tool, context, seen_ids)
+                if primary is not None:
+                    primary.score = score
+                    primary.confidence = confidence
+                    primary.selection_reason = reasoning
+                    result.selected_tools.append(primary)
+                    result.selection_scores[tool.id] = score
+                    result.selection_reasons[tool.id] = reasoning
+                    seen_ids.add(tool.id)
+                    self._publish(ToolSelected(
+                        tool_id=tool.id, name=tool.name,
+                        score=score, reason=reasoning,
+                    ))
+
+                    for dep in tool.dependencies:
+                        if dep.tool_id not in seen_ids and dep.tool_id in tool_by_id:
+                            dep_tool = tool_by_id[dep.tool_id]
                             dep_selected = SelectedTool(
                                 tool=dep_tool,
                                 score=1.0,
                                 selection_reason=f"Dependency of {tool.id}",
                                 is_fallback=False,
+                                confidence=1.0,
                             )
                             result.selected_tools.append(dep_selected)
                             result.selection_scores[dep_tool.id] = 1.0
                             result.selection_reasons[dep_tool.id] = f"Dependency of {tool.id}"
-                            seen_ids.add(dep.tool_id)
+                            seen_ids.add(dep_tool.id)
+                else:
+                    fallback = self._find_fallback(tool, context, seen_ids, score, confidence)
+                    if fallback is not None:
+                        result.fallback_tools.append(fallback)
+                        result.selected_tools.append(fallback)
+                        result.selection_scores[fallback.tool.id] = fallback.score
+                        result.selection_reasons[fallback.tool.id] = fallback.selection_reason
+                        seen_ids.add(fallback.tool.id)
+                        self._fallback_count += 1
             else:
-                fallback = self._find_fallback(tool, context, seen_ids)
-                if fallback is not None:
-                    result.fallback_tools.append(fallback)
-                    result.selected_tools.append(fallback)
-                    result.selection_scores[fallback.tool.id] = fallback.score
-                    result.selection_reasons[fallback.tool.id] = fallback.selection_reason
-                    seen_ids.add(fallback.tool.id)
-                    self._fallback_count += 1
+                # Dependency-only tool: add if healthy
+                if SelectionRules.is_healthy(tool) and SelectionRules.dependencies_satisfied(tool, seen_ids | {tool.id}):
+                    dep_selected = SelectedTool(
+                        tool=tool,
+                        score=score,
+                        selection_reason=f"Dependency of top-ranked tool",
+                        is_fallback=False,
+                        confidence=confidence,
+                    )
+                    result.selected_tools.append(dep_selected)
+                    result.selection_scores[tool.id] = score
+                    result.selection_reasons[tool.id] = f"Dependency of top-ranked tool"
+                    seen_ids.add(tool.id)
 
         if result.selected_tools:
             result.estimated_total_latency_ms = sum(
@@ -129,6 +184,8 @@ class ToolSelectionEngine:
                 continue
             if not SelectionRules.matches_category(tool, context):
                 continue
+            if not SelectionRules.matches_capability(tool, context):
+                continue
             candidates.append(tool)
         return candidates
 
@@ -145,7 +202,8 @@ class ToolSelectionEngine:
         )
 
     def _find_fallback(self, original: ToolDefinition, context: ToolSelectionContext,
-                       already_selected: Set[str]) -> Optional[SelectedTool]:
+                       already_selected: Set[str], original_score: float = 0.0,
+                       original_confidence: float = 0.0) -> Optional[SelectedTool]:
         same_category = self._tool_registry.get_by_category(original.category)
         alternatives = [
             t for t in same_category
@@ -173,6 +231,7 @@ class ToolSelectionEngine:
             score=0.5,
             selection_reason=f"Fallback from {original.id}",
             is_fallback=True,
+            confidence=original_confidence * 0.7,
         )
 
     def health(self) -> Dict[str, Any]:
