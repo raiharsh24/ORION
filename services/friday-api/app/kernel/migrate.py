@@ -17,8 +17,25 @@ def run_database_migrations(db_path: str) -> None:
     Programmatically run Alembic migrations on the given SQLite database path.
     Preserves existing databases by checking if tables already exist and stamping them.
     """
-    from alembic.config import Config
-    from alembic import command
+    try:
+        from alembic.config import Config
+        from alembic import command
+    except ModuleNotFoundError:
+        logger.warning("Alembic package not available. Initializing SQLite tables manually...")
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        try:
+            conn = sqlite3.connect(db_path, timeout=10.0)
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE IF NOT EXISTS memory_kv (key TEXT PRIMARY KEY, value TEXT)")
+            conn.commit()
+            conn.close()
+            logger.info("Manual SQLite database tables initialized successfully.")
+            return
+        except sqlite3.Error as e:
+            logger.error(f"Failed to manually initialize SQLite database: {e}")
+            raise
 
     # Ensure the parent directory of the database file exists
     db_dir = os.path.dirname(os.path.abspath(db_path))

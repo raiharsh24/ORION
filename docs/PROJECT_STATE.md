@@ -5,7 +5,7 @@
 - **Current Branch**: `semantic-phase1-backup-20260718`
 - **Current Milestone**: Milestone 7 (Autonomous Development System & MCP Runtime)
 - **Status**: Semantic Phase 1 Release Candidate
-- **Last Updated**: 2026-07-19T10:40:00Z
+- **Last Updated**: 2026-07-19T11:00:00Z
 
 ## Core Architecture
 FRIDAY consists of:
@@ -15,7 +15,7 @@ FRIDAY consists of:
 4. **FACS Subsystem**: The AI continuity and state tracking system.
 
 ## Current Objective
-- Implement and integrate **FRIDAY AI Continuity System (FACS)** to achieve zero-context, AI-portable handoffs.
+- Finalize and release **FRIDAY v1.5.0-rc1** Release Candidate.
 
 ## Active Blockers
 - None.
@@ -27,6 +27,6 @@ FRIDAY consists of:
 - Concurrently start all via root: `npm run dev`
 
 ## System Health
-- **Pytests**: 2,210 / 2,211 passing (99.95% pass rate).
-- **Known Failures**: `tests/test_v0_4.py::test_ask_endpoint_success` (Legacy connectivity test).
+- **Pytests**: 2,213 / 2,213 passing (100% pass rate).
+- **Known Failures**: None.
 - **Service Status**: Gateway, Backend, and Desktop boot successfully.

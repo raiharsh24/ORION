@@ -12,12 +12,16 @@ All notable changes to the FRIDAY AI project will be documented in this file.
 - `/autonomous` and `/api/autonomous` path mapping in Gateway proxy (`proxyMiddleware.js`).
 - Event-driven Goal and Task persistence inside `AutonomousDevelopmentManager`.
 - Async unit tests for `AutonomousPlanner` utilizing `pytest.mark.anyio`.
+- FACS (FRIDAY AI Continuity System) including scripts/ai_session_manager.py CLI and EventBus document sync.
+- Unit tests for FACS CLI and subscribers in `tests/test_facs.py`.
 
 ### Fixed
 - Fixed syntax compile blockers in `planner.py` (importing `Any` from `typing`).
 - Fixed missing router imports in `autonomous.py`.
 - Resolved `ValueError: AutonomousReflection requires a LearningEngine` by making the learning engine dependency optional, fixing 78 failing tests in mock environments.
 - Corrected task result parsing in reflection engine by using `ast.literal_eval` to safely evaluate stringified dictionaries.
+- Implemented robust alembic import fallback in database migrations to manually initialize tables when alembic package is missing/shadowed.
+- Updated outdated legacy assertions in `test_v0_4.py::test_ask_endpoint_success` to support the UnifiedExecutionEngine telemetry contract.
 
 ---
 
