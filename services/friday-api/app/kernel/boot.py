@@ -915,6 +915,14 @@ class BootManager:
                 description="Milestone 7 Autonomous Development System for self-improvement and project analysis.",
             )
             logger.info("Autonomous Development System registered in FridayServiceContainer.")
+
+            # Initialize FACS System integration (AI Continuity)
+            logger.info("Boot Step 7f: Initialize FACS Subsystem...")
+            from app.facs.subscriber import FACSSubscriber
+            facs_subscriber = FACSSubscriber(event_bus=event_bus)
+            await facs_subscriber.initialize()
+            self._container.register_singleton("facs_subscriber", facs_subscriber)
+            logger.info("FACS Subsystem event listener registered in FridayServiceContainer.")
         except Exception as e:
             logger.error(f"Failed to initialize Autonomous Development System: {str(e)}", exc_info=True)
             raise e
