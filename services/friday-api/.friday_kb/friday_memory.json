@@ -22,11 +22,11 @@
     "metadata": {}
   },
   "consolidated:fact:sess_999": {
-    "id": "3d19ce9d-99d9-4409-8dbe-dc98d5c099fb",
+    "id": "06f0358c-f534-4e63-945d-d927857ca79a",
     "content": "Session summary: custom summary",
     "category": "general",
     "importance": 6,
-    "timestamp": 1783658579.355103,
+    "timestamp": 1784437234.694405,
     "expiration": null,
     "metadata": {
       "source": "consolidation",
@@ -79,11 +79,11 @@
     "metadata": {}
   },
   "consolidated:fact:6a430eb7-73b6-4325-a7ef-9cc9608eaca8": {
-    "id": "115bf711-0d9d-43e5-bd8e-17679770a7a7",
+    "id": "6bf7875d-cb8e-4885-ab61-027e61c665e6",
     "content": "Session summary: Conversation session initialized.",
     "category": "general",
     "importance": 6,
-    "timestamp": 1783658579.355714,
+    "timestamp": 1784437234.695753,
     "expiration": null,
     "metadata": {
       "source": "consolidation",

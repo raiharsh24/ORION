@@ -874,6 +874,51 @@ class BootManager:
             logger.error(f"Failed to initialize Unified Execution Engine: {str(e)}")
             raise e
 
+        # Step 7s: Initialize Autonomous Development System (Milestone 7)
+        logger.info("Boot Step 7s: Initialize Autonomous Development System...")
+        try:
+            from app.autonomous_dev.planner import AutonomousPlanner
+            from app.autonomous_dev.executor import AutonomousExecutor
+            from app.autonomous_dev.reflection import AutonomousReflection
+            from app.autonomous_dev.manager import AutonomousDevelopmentManager
+            from app.core.dependencies import workspace_manager, document_indexer
+
+            # The reflection engine needs the learning engine from memory
+            memory_engine_service = self._container.get("memory_engine")
+            learning_engine = getattr(memory_engine_service, "_learning", None)
+
+            autonomous_planner = AutonomousPlanner(memory_engine=memory_engine_service)
+            self._container.register_singleton("autonomous_planner", autonomous_planner)
+            kernel.module_registry.register_module("autonomous_planner", "1.0.0", ["memory_engine"], autonomous_planner)
+
+            autonomous_executor = AutonomousExecutor(
+                workspace_manager=workspace_manager,
+                document_indexer=document_indexer
+            )
+            self._container.register_singleton("autonomous_executor", autonomous_executor)
+            kernel.module_registry.register_module("autonomous_executor", "1.0.0", [], autonomous_executor)
+
+            autonomous_reflection = AutonomousReflection(
+                learning_engine=learning_engine,
+                event_bus=event_bus
+            )
+            self._container.register_singleton("reflection_engine_v2", autonomous_reflection) # Note: reusing v2 name for now
+            kernel.module_registry.register_module("autonomous_reflection", "1.0.0", ["memory_engine", "event_bus"], autonomous_reflection)
+
+            autonomous_manager = AutonomousDevelopmentManager(event_bus=event_bus)
+            self._container.register_singleton("autonomous_manager", autonomous_manager)
+            kernel.module_registry.register_module("autonomous_manager", "1.0.0", ["event_bus", "autonomous_planner", "autonomous_executor", "autonomous_reflection"], autonomous_manager)
+
+            kernel.capability_registry.register_capability(
+                name="AutonomousDevelopment",
+                module_name="autonomous_manager",
+                description="Milestone 7 Autonomous Development System for self-improvement and project analysis.",
+            )
+            logger.info("Autonomous Development System registered in FridayServiceContainer.")
+        except Exception as e:
+            logger.error(f"Failed to initialize Autonomous Development System: {str(e)}", exc_info=True)
+            raise e
+
         # Step 7r: Initialize Autonomous Mission Runtime (Phase 9 Sprint 1)
         logger.info("Boot Step 7r: Initialize Autonomous Mission Runtime...")
         try:

@@ -27,7 +27,8 @@ const targets = [
   '/planner_inspector', '/api/planner_inspector',
   '/runtime_inspector', '/api/runtime_inspector',
   '/agent_inspector', '/api/agent_inspector',
-  '/cognitive_inspector', '/api/cognitive_inspector'
+  '/cognitive_inspector', '/api/cognitive_inspector',
+  '/autonomous', '/api/autonomous'
 ];
 
 const proxyFilter = (pathname) => {
