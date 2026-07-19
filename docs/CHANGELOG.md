@@ -4,6 +4,12 @@ All notable changes to the FRIDAY AI project will be documented in this file.
 
 ---
 
+### Added (Session AntiGravity)
+- Modified: services/friday-api/.friday_kb/friday_memory.db
+- Modified: services/friday-api/.friday_kb/friday_memory.json
+- Modified: services/friday-api/.friday_kb/workflows/hard-cancel-test-wf.json
+- Modified: KIMI_K3_AUDIT.md
+
 ## [1.5.0-rc1] - 2026-07-19
 
 ### Added
